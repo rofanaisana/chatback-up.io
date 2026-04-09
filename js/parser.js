@@ -1,4 +1,4 @@
-/* ════════��══════════════════════════════
+/* ═══════════════════════════════════════
    parser.js — txt 파일 파싱
    ═══════════════════════════════════════ */
 
@@ -37,7 +37,6 @@ var ChatParser = (function () {
   function isSeparatorLine(line) {
     var trimmed = line.trim();
     if (trimmed.length < 3) return false;
-    // ─, ═, -, *, _ 등 반복 문자
     if (/^[─═\-\*_~]{3,}$/.test(trimmed)) return true;
     return false;
   }
@@ -51,40 +50,23 @@ var ChatParser = (function () {
     return -1;
   }
 
-  // 턴 시작 라인인지 판단 (구분선 + 턴 번호 포함 라인 조합)
-  function isTurnStart(lines, idx) {
-    var line = lines[idx];
-
-    // 직접 턴 번호가 있는 경우
-    if (extractTurnNumber(line) > 0) return true;
-
-    // 구분선 다음 줄에 턴 번호가 있는 경우
-    if (isSeparatorLine(line) && idx + 1 < lines.length) {
-      if (extractTurnNumber(lines[idx + 1]) > 0) return true;
-    }
-
-    return false;
-  }
-
   // 스피커 감지 (🗣️ [이름] 또는 🤖 [이름])
   function parseSpeaker(line) {
     var trimmed = line.trim();
 
-    // 이모지 + [이름] 패턴
     var m = trimmed.match(/^(🗣️|🗣|👤|🧑|💬)\s*\[([^\]]+)\]/);
     if (m) return { type: 'user', name: m[2].trim() };
 
     m = trimmed.match(/^(🤖|🎭|💻|✨)\s*\[([^\]]+)\]/);
     if (m) return { type: 'ai', name: m[2].trim() };
 
-    // [이름] 패턴만 (아이콘 없이)
     m = trimmed.match(/^\[([^\]]+)\]$/);
     if (m) return { type: 'unknown', name: m[1].trim() };
 
     return null;
   }
 
-  // 턴 내부에서 메시지 분리
+  // 턴 내부에서 메시지 분리 (유저+AI를 하나의 턴으로)
   function parseTurnContent(contentLines) {
     var messages = [];
     var currentSpeaker = null;
@@ -95,7 +77,6 @@ var ChatParser = (function () {
       var speaker = parseSpeaker(line);
 
       if (speaker) {
-        // 이전 스피커 메시지 저장
         if (currentSpeaker) {
           messages.push({
             speaker: currentSpeaker,
@@ -109,7 +90,6 @@ var ChatParser = (function () {
       }
     }
 
-    // 마지막 메시지
     if (currentSpeaker && currentLines.length > 0) {
       messages.push({
         speaker: currentSpeaker,
@@ -117,7 +97,6 @@ var ChatParser = (function () {
       });
     }
 
-    // 스피커 없이 전체가 하나의 텍스트인 경우
     if (messages.length === 0 && contentLines.length > 0) {
       var fullText = contentLines.join('\n').trim();
       if (fullText) {
@@ -137,29 +116,48 @@ var ChatParser = (function () {
     var lines = text.split('\n');
     var turns = [];
 
-    // 1단계: 턴 시작 위치 찾기
+    // 1단계: 턴 시작 위치 찾기 (중복 방지!)
     var turnStarts = [];
-    for (var i = 0; i < lines.length; i++) {
-      if (isTurnStart(lines, i)) {
-        var turnNum = extractTurnNumber(lines[i]);
-        if (turnNum < 0 && i + 1 < lines.length) {
-          turnNum = extractTurnNumber(lines[i + 1]);
+    var i = 0;
+    while (i < lines.length) {
+      var line = lines[i];
+      var turnNum = extractTurnNumber(line);
+
+      if (turnNum > 0) {
+        // 이 줄 자체에 턴 번호가 있음 → 턴 시작
+        // 이 줄 바로 위가 구분선이면 구분선부터 턴 시작으로 잡기
+        var startIdx = i;
+        if (i > 0 && isSeparatorLine(lines[i - 1])) {
+          startIdx = i - 1;
         }
-        turnStarts.push({ index: i, turnNum: turnNum });
+        // 중복 방지: 이미 같은 위치가 등록됐으면 스킵
+        if (turnStarts.length === 0 || turnStarts[turnStarts.length - 1].index !== startIdx) {
+          turnStarts.push({ index: startIdx, turnNum: turnNum });
+        }
+        i++;
+        continue;
       }
+
+      // 구분선이고 다음 줄에 턴 번호가 있으면 → 다음 줄에서 처리되므로 스킵
+      if (isSeparatorLine(line) && i + 1 < lines.length && extractTurnNumber(lines[i + 1]) > 0) {
+        // 다음 반복에서 턴 번호 줄이 처리할 것 → 여기서는 아무것도 안 함
+        i++;
+        continue;
+      }
+
+      i++;
     }
 
     // 턴을 못 찾은 경우: 전체를 하나의 턴으로
     if (turnStarts.length === 0) {
-      // 헤더 영역 이후부터
-      var startIdx = 0;
+      var startIdx2 = 0;
       for (var j = 0; j < Math.min(lines.length, 15); j++) {
         if (/^[═]{3,}$/.test(lines[j].trim())) {
-          startIdx = j + 1;
+          startIdx2 = j + 1;
           break;
         }
       }
-      var contentLines = lines.slice(startIdx);
+      var contentLines = lines.slice(startIdx2);
       var messages = parseTurnContent(contentLines);
       if (messages.length > 0) {
         turns.push({ turnNum: 1, messages: messages, rawText: contentLines.join('\n') });
@@ -174,7 +172,7 @@ var ChatParser = (function () {
 
       // 턴 헤더 라인(구분선, 턴번호 라인) 건너뛰기
       var contentStart = start;
-      for (var s = start; s < Math.min(start + 4, end); s++) {
+      for (var s = start; s < Math.min(start + 5, end); s++) {
         if (isSeparatorLine(lines[s]) || extractTurnNumber(lines[s]) > 0) {
           contentStart = s + 1;
         } else {
@@ -192,7 +190,7 @@ var ChatParser = (function () {
       });
     }
 
-    // 스피커 이름 자동 감지 (첫 번째 user/ai)
+    // 스피커 이름 자동 감지
     var detectedNames = { user: '', ai: '' };
     for (var tn = 0; tn < turns.length; tn++) {
       for (var mn = 0; mn < turns[tn].messages.length; mn++) {
