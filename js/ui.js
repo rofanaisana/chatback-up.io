@@ -10,8 +10,8 @@
     rawText: '',
     parsed: null,
     chapters: [],
-    manualBreaks: new Set(), // 직접 지정 모드: 챕터 나눌 턴 인덱스
-    chapterNames: [],        // 커스텀 챕터 이름
+    manualBreaks: new Set(),
+    chapterNames: [],
     coverData: null,
     coverType: '',
   };
@@ -44,21 +44,21 @@
     $('cover-input').addEventListener('change', handleCover);
     $('cover-clear').addEventListener('click', clearCover);
 
-    // 옵션 변경 → 미리보기 갱신
-    var refreshInputs = [
-      'chapter-mode', 'group-size', 'chapter-format',
-      'fmt-italic', 'fmt-dialogue', 'fmt-speaker',
-      'style-user-color', 'style-ai-color',
-      'html-font', 'html-line-height', 'html-padding', 'html-bg', 'html-text-color'
-    ];
-
+    // 챕터 모드
     document.querySelectorAll('input[name="chapter-mode"]').forEach(function (r) {
       r.addEventListener('change', onChapterModeChange);
     });
-    ['group-size', 'chapter-format', 'fmt-dialogue'].forEach(function (id) {
+    ['group-size', 'fmt-dialogue'].forEach(function (id) {
       var el = $(id);
       if (el) el.addEventListener('change', refreshAll);
     });
+
+    // 챕터 형식 변경
+    $('chapter-format').addEventListener('change', function () {
+      onChapterFormatChange();
+      refreshAll();
+    });
+
     ['fmt-italic', 'fmt-speaker'].forEach(function (id) {
       var el = $(id);
       if (el) el.addEventListener('change', refreshAll);
@@ -73,6 +73,12 @@
       $('html-lh-val').textContent = this.value;
     });
 
+    // HTML 스타일 변경 → 미리보기 갱신
+    ['html-font', 'html-line-height', 'html-padding', 'html-bg', 'html-text-color'].forEach(function (id) {
+      var el = $(id);
+      if (el) el.addEventListener('input', refreshPreview);
+    });
+
     // 내보내기 버튼
     $('btn-epub').addEventListener('click', exportEpub);
     $('btn-html-download').addEventListener('click', exportHtmlFile);
@@ -80,7 +86,20 @@
     $('btn-copy-code').addEventListener('click', copyHtmlCode);
     $('btn-close-code').addEventListener('click', function () { $('code-area').classList.add('hidden'); });
 
-    // 스피커 표시 토글 → 스타일 옵션 표시/숨김
+    // 챕터 이름 편집 버튼
+    var editBtn = $('btn-edit-chapters');
+    if (editBtn) editBtn.addEventListener('click', openChapterModal);
+
+    // 챕터 모달 버튼
+    $('chapter-modal-cancel').addEventListener('click', closeChapterModal);
+    $('chapter-modal-save').addEventListener('click', saveChapterNames);
+
+    // 모달 오버레이 클릭 닫기
+    $('chapter-modal').addEventListener('click', function (e) {
+      if (e.target === $('chapter-modal')) closeChapterModal();
+    });
+
+    // 스피커 표시 토글
     $('fmt-speaker').addEventListener('change', function () {
       $('speaker-style-wrap').style.display = this.checked ? 'block' : 'none';
     });
@@ -104,12 +123,10 @@
       $('file-info').classList.remove('hidden');
       $('drop-zone').classList.add('hidden');
 
-      // 메타 자동 채우기
       if (state.parsed.header.title) {
         $('meta-title').value = state.parsed.header.title;
       }
 
-      // 패널 표시
       showPanels();
       refreshAll();
 
@@ -141,12 +158,15 @@
     });
     $('empty-state').classList.add('hidden');
     $('preview-area').classList.remove('hidden');
+    onChapterFormatChange(); // 직접 입력이면 편집 버튼 보이기
   }
 
   function hidePanels() {
     ['meta-panel', 'chapter-panel', 'format-panel', 'html-style-panel', 'export-panel'].forEach(function (id) {
       $(id).classList.add('hidden');
     });
+    var editBtn = $('btn-edit-chapters');
+    if (editBtn) editBtn.classList.add('hidden');
   }
 
   // ── 표지 ──
@@ -175,6 +195,68 @@
     var mode = document.querySelector('input[name="chapter-mode"]:checked').value;
     $('group-size-wrap').classList.toggle('hidden', mode !== 'group');
     refreshAll();
+  }
+
+  // ── 챕터 형식 변경 → '직접 입력' 시 편집 버튼 표시 ──
+  function onChapterFormatChange() {
+    var format = $('chapter-format').value;
+    var editBtn = $('btn-edit-chapters');
+    if (editBtn) {
+      if (format === 'custom') {
+        editBtn.classList.remove('hidden');
+      } else {
+        editBtn.classList.add('hidden');
+      }
+    }
+  }
+
+  // ── 챕터 이름 편집 모달 ──
+  function openChapterModal() {
+    if (!state.chapters.length) {
+      showToast('❌ 먼저 파일을 업로드하세요');
+      return;
+    }
+
+    var listEl = $('chapter-list');
+    listEl.innerHTML = '';
+
+    for (var i = 0; i < state.chapters.length; i++) {
+      var item = document.createElement('div');
+      item.className = 'chapter-item';
+
+      var span = document.createElement('span');
+      span.textContent = (i + 1) + '.';
+
+      var input = document.createElement('input');
+      input.type = 'text';
+      input.value = state.chapterNames[i] || state.chapters[i].title;
+      input.dataset.idx = i;
+      input.placeholder = '챕터 이름 입력';
+
+      item.appendChild(span);
+      item.appendChild(input);
+      listEl.appendChild(item);
+    }
+
+    $('chapter-modal').classList.remove('hidden');
+  }
+
+  function closeChapterModal() {
+    $('chapter-modal').classList.add('hidden');
+  }
+
+  function saveChapterNames() {
+    var inputs = $('chapter-list').querySelectorAll('input');
+    inputs.forEach(function (input) {
+      var idx = parseInt(input.dataset.idx);
+      var val = input.value.trim();
+      if (val) {
+        state.chapterNames[idx] = val;
+      }
+    });
+    closeChapterModal();
+    refreshAll();
+    showToast('✅ 챕터 이름 적용 완료!');
   }
 
   // ── 챕터 빌드 ──
@@ -212,7 +294,6 @@
         });
         prev = breakPoints[b];
       }
-      // 나머지
       if (prev < turns.length) {
         chapters.push({
           title: getChapterTitle(format, chapters.length, prev, turns.length - 1),
@@ -233,11 +314,15 @@
   }
 
   function getChapterTitle(format, idx, fromTurn, toTurn) {
+    // custom 모드이고 이미 저장된 이름이 있으면 그걸 우선 사용
+    if (format === 'custom' && state.chapterNames[idx]) {
+      return state.chapterNames[idx];
+    }
     switch (format) {
       case 'chapter': return 'Chapter ' + (idx + 1);
       case 'jang': return (idx + 1) + '장';
       case 'turn': return 'Turn ' + (fromTurn + 1) + '~' + (toTurn + 1);
-      case 'custom': return (idx + 1) + '장';
+      case 'custom': return (idx + 1) + '장'; // 기본값
       default: return 'Chapter ' + (idx + 1);
     }
   }
@@ -281,11 +366,15 @@
     var aiColor = $('style-ai-color').value;
     var mode = document.querySelector('input[name="chapter-mode"]:checked').value;
 
+    // HTML 스타일 옵션 → 미리보기에도 반영
+    var fontFamily = $('html-font').value;
+    var lineHeight = parseFloat($('html-line-height').value);
+    var bgColor = $('html-bg').value;
+    var textColor = $('html-text-color').value;
+
     $('turn-count').textContent = state.parsed.turns.length + '개 턴 · ' + chapters.length + '개 챕터';
 
     var html = '';
-
-    // 전체 턴 인덱스 추적 (manual 모드용)
     var globalTurnIdx = 0;
 
     for (var c = 0; c < chapters.length; c++) {
@@ -311,7 +400,6 @@
 
         globalTurnIdx++;
 
-        // manual 모드: 챕터 나누기 버튼
         if (mode === 'manual' && globalTurnIdx < state.parsed.turns.length) {
           var isActive = state.manualBreaks.has(globalTurnIdx);
           html += '<button class="chapter-break-btn ' + (isActive ? 'active' : '') +
@@ -323,7 +411,13 @@
       html += '</div>';
     }
 
-    $('preview-content').innerHTML = html;
+    // HTML 스타일 미리보기에 반영
+    var previewContent = $('preview-content');
+    previewContent.innerHTML = html;
+    previewContent.style.fontFamily = fontFamily;
+    previewContent.style.lineHeight = lineHeight;
+    previewContent.style.background = bgColor;
+    previewContent.style.color = textColor;
 
     // manual 모드 버튼 이벤트
     if (mode === 'manual') {
@@ -385,8 +479,10 @@
     if (!state.chapters.length) { showToast('❌ 변환할 내용이 없습니다'); return; }
     var html = HtmlBuilder.build(state.chapters, getHtmlOptions());
     $('code-output').value = html;
+
+    // 미리보기 숨기고 코드 영역 표시
+    $('preview-area').classList.add('hidden');
     $('code-area').classList.remove('hidden');
-    $('code-output').scrollTop = 0;
   }
 
   function copyHtmlCode() {
