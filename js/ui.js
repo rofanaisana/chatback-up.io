@@ -1,9 +1,12 @@
 /* ═══════════════════════════════════════
    ui.js — UI 인터랙션, 미리보기, 이벤트
+   페이지네이션 + 분할저장 + 파싱설정
    ═══════════════════════════════════════ */
 
 (function () {
   'use strict';
+
+  var PREVIEW_PAGE_SIZE = 50; // 미리보기 한 페이지에 보여줄 턴 수
 
   var state = {
     rawText: '',
@@ -13,6 +16,7 @@
     chapterNames: [],
     coverData: null,
     coverType: '',
+    previewPage: 0,
   };
 
   var $ = function (id) { return document.getElementById(id); };
@@ -40,13 +44,20 @@
     $('cover-input').addEventListener('change', handleCover);
     $('cover-clear').addEventListener('click', clearCover);
 
+    // 파싱 설정
+    $('btn-reparse').addEventListener('click', reparseFile);
+
     // 챕터 모드
     document.querySelectorAll('input[name="chapter-mode"]').forEach(function (r) {
       r.addEventListener('change', onChapterModeChange);
     });
-    ['group-size', 'fmt-dialogue', 'fmt-align'].forEach(function (id) {
+    ['group-size'].forEach(function (id) {
       var el = $(id);
       if (el) el.addEventListener('change', refreshAll);
+    });
+    ['fmt-dialogue', 'fmt-align'].forEach(function (id) {
+      var el = $(id);
+      if (el) el.addEventListener('change', function () { state.previewPage = 0; refreshAll(); });
     });
 
     $('chapter-format').addEventListener('change', function () {
@@ -54,39 +65,42 @@
       refreshAll();
     });
 
-    ['fmt-italic', 'fmt-speaker', 'fmt-indent-stage', 'fmt-indent-dialogue'].forEach(function (id) {
+    ['fmt-italic', 'fmt-speaker', 'fmt-indent-stage', 'fmt-indent-dialogue', 'fmt-auto-dialogue'].forEach(function (id) {
       var el = $(id);
-      if (el) el.addEventListener('change', refreshAll);
+      if (el) el.addEventListener('change', function () { state.previewPage = 0; refreshAll(); });
     });
     ['style-user-color', 'style-ai-color'].forEach(function (id) {
       var el = $(id);
       if (el) el.addEventListener('input', refreshPreview);
     });
 
-    // 자간 슬라이더
     $('fmt-letter-spacing').addEventListener('input', function () {
       $('fmt-ls-val').textContent = this.value + 'px';
       refreshPreview();
     });
-
-    // 줄간격
     $('html-line-height').addEventListener('input', function () {
       $('html-lh-val').textContent = this.value;
       refreshPreview();
     });
 
-    // HTML 스타일
     ['html-font', 'html-padding', 'html-bg', 'html-text-color'].forEach(function (id) {
       var el = $(id);
       if (el) el.addEventListener('input', refreshPreview);
     });
 
     // 내보내기
-    $('btn-epub').addEventListener('click', exportEpub);
-    $('btn-html-download').addEventListener('click', exportHtmlFile);
+    $('btn-epub').addEventListener('click', doExport.bind(null, 'epub'));
+    $('btn-html-download').addEventListener('click', doExport.bind(null, 'html'));
     $('btn-html-code').addEventListener('click', showHtmlCode);
     $('btn-copy-code').addEventListener('click', copyHtmlCode);
     $('btn-back-preview').addEventListener('click', backToPreview);
+
+    // 분할 저장 토글
+    document.querySelectorAll('input[name="export-mode"]').forEach(function (r) {
+      r.addEventListener('change', function () {
+        $('split-options').classList.toggle('hidden', this.value !== 'split');
+      });
+    });
 
     // 챕터 편집
     var editBtn = $('btn-edit-chapters');
@@ -108,12 +122,21 @@
       refreshPreview();
     });
 
-    // 템플릿 옵션 변경 → 미리보기
     ['tpl-turn-bg', 'tpl-turn-border', 'tpl-turn-border-width', 'tpl-turn-radius',
      'tpl-turn-padding', 'tpl-turn-gap', 'tpl-user-bg', 'tpl-ai-bg',
      'tpl-msg-radius', 'tpl-msg-padding', 'tpl-chapter-divider'].forEach(function (id) {
       var el = $(id);
       if (el) el.addEventListener('input', refreshPreview);
+    });
+
+    // 페이지네이션
+    $('prev-page').addEventListener('click', function () {
+      if (state.previewPage > 0) { state.previewPage--; refreshPreview(); }
+    });
+    $('next-page').addEventListener('click', function () {
+      var totalTurns = state.parsed ? state.parsed.turns.length : 0;
+      var maxPage = Math.ceil(totalTurns / PREVIEW_PAGE_SIZE) - 1;
+      if (state.previewPage < maxPage) { state.previewPage++; refreshPreview(); }
     });
   }
 
@@ -129,17 +152,46 @@
       state.parsed = ChatParser.parse(state.rawText);
       state.manualBreaks = new Set();
       state.chapterNames = [];
+      state.previewPage = 0;
       $('file-name').textContent = '📄 ' + file.name;
       $('file-info').classList.remove('hidden');
       $('drop-zone').classList.add('hidden');
       if (state.parsed.header.title) {
         $('meta-title').value = state.parsed.header.title;
       }
+      updateDetectedInfo();
       showPanels();
       refreshAll();
       showToast('✅ ' + state.parsed.turns.length + '개 턴 감지!');
     };
     reader.readAsText(file, 'UTF-8');
+  }
+
+  function reparseFile() {
+    if (!state.rawText) { showToast('❌ 먼저 파일을 업로드하세요'); return; }
+    var opts = {};
+    var sepVal = $('parse-turn-sep').value.trim();
+    var userVal = $('parse-user-marker').value.trim();
+    var aiVal = $('parse-ai-marker').value.trim();
+    if (sepVal) opts.turnSeparator = sepVal;
+    if (userVal) opts.userMarker = userVal;
+    if (aiVal) opts.aiMarker = aiVal;
+
+    state.parsed = ChatParser.parse(state.rawText, opts);
+    state.manualBreaks = new Set();
+    state.chapterNames = [];
+    state.previewPage = 0;
+    updateDetectedInfo();
+    refreshAll();
+    showToast('🔄 다시 파싱 완료! ' + state.parsed.turns.length + '개 턴');
+  }
+
+  function updateDetectedInfo() {
+    if (!state.parsed) return;
+    var p = state.parsed;
+    $('detected-sep').textContent = p.detectedSep || '(자동 감지됨)';
+    $('detected-user').textContent = p.detectedNames && p.detectedNames.user ? p.detectedNames.user : '-';
+    $('detected-ai').textContent = p.detectedNames && p.detectedNames.ai ? p.detectedNames.ai : '-';
   }
 
   function clearFile() {
@@ -148,6 +200,7 @@
     state.chapters = [];
     state.manualBreaks = new Set();
     state.chapterNames = [];
+    state.previewPage = 0;
     $('file-info').classList.add('hidden');
     $('drop-zone').classList.remove('hidden');
     $('file-input').value = '';
@@ -158,7 +211,7 @@
   }
 
   function showPanels() {
-    ['meta-panel', 'chapter-panel', 'format-panel', 'html-style-panel', 'template-panel', 'export-panel'].forEach(function (id) {
+    ['parse-panel', 'meta-panel', 'chapter-panel', 'format-panel', 'html-style-panel', 'template-panel', 'export-panel'].forEach(function (id) {
       $(id).classList.remove('hidden');
     });
     $('empty-state').classList.add('hidden');
@@ -168,7 +221,7 @@
   }
 
   function hidePanels() {
-    ['meta-panel', 'chapter-panel', 'format-panel', 'html-style-panel', 'template-panel', 'export-panel'].forEach(function (id) {
+    ['parse-panel', 'meta-panel', 'chapter-panel', 'format-panel', 'html-style-panel', 'template-panel', 'export-panel'].forEach(function (id) {
       $(id).classList.add('hidden');
     });
     var editBtn = $('btn-edit-chapters');
@@ -200,6 +253,7 @@
   function onChapterModeChange() {
     var mode = document.querySelector('input[name="chapter-mode"]:checked').value;
     $('group-size-wrap').classList.toggle('hidden', mode !== 'group');
+    state.previewPage = 0;
     refreshAll();
   }
 
@@ -300,6 +354,7 @@
       letterSpacing: parseFloat($('fmt-letter-spacing').value),
       indentStage: $('fmt-indent-stage').checked,
       indentDialogue: $('fmt-indent-dialogue').checked,
+      autoDialogue: $('fmt-auto-dialogue').checked,
     };
   }
 
@@ -336,7 +391,7 @@
     };
   }
 
-  // ── 미리보기 ──
+  // ── 미리보기 (페이지네이션) ──
   function refreshAll() {
     buildChapters();
     refreshPreview();
@@ -360,19 +415,40 @@
     var textAlign = formatOpts.textAlign || 'left';
     var letterSpacing = formatOpts.letterSpacing || 0;
 
-    $('turn-count').textContent = state.parsed.turns.length + '개 턴 · ' + chapters.length + '개 챕터';
+    var totalTurns = state.parsed.turns.length;
+    var totalPages = Math.max(1, Math.ceil(totalTurns / PREVIEW_PAGE_SIZE));
+    if (state.previewPage >= totalPages) state.previewPage = totalPages - 1;
 
+    $('turn-count').textContent = totalTurns + '개 턴 · ' + chapters.length + '개 챕터';
+
+    // 페이지네이션: 현재 페이지에 해당하는 턴 범위
+    var pageStart = state.previewPage * PREVIEW_PAGE_SIZE;
+    var pageEnd = Math.min(pageStart + PREVIEW_PAGE_SIZE, totalTurns);
+
+    // 어떤 챕터의 어떤 턴이 이 범위에 해당하는지 계산
     var html = '';
     var globalTurnIdx = 0;
 
     for (var c = 0; c < chapters.length; c++) {
+      var chTurns = chapters[c].turns;
+      var chStart = globalTurnIdx;
+      var chEnd = globalTurnIdx + chTurns.length;
+
+      // 이 챕터가 현재 페이지 범위와 겹치는지
+      if (chEnd <= pageStart || chStart >= pageEnd) {
+        globalTurnIdx += chTurns.length;
+        continue;
+      }
+
       html += '<div class="preview-chapter">';
       html += '<div class="preview-chapter-title">' + ChatFormatter.escapeHtml(chapters[c].title) + '</div>';
 
-      for (var t = 0; t < chapters[c].turns.length; t++) {
-        var turn = chapters[c].turns[t];
+      for (var t = 0; t < chTurns.length; t++) {
+        var absoluteIdx = globalTurnIdx + t;
+        if (absoluteIdx < pageStart || absoluteIdx >= pageEnd) continue;
 
-        // 턴 래퍼 (템플릿 적용)
+        var turn = chTurns[t];
+
         if (tpl) {
           html += '<div class="preview-turn" style="background:' + tpl.turnBg +
             ';border:' + tpl.turnBorderWidth + 'px solid ' + tpl.turnBorder +
@@ -384,8 +460,6 @@
 
         for (var m = 0; m < turn.messages.length; m++) {
           var msg = turn.messages[m];
-
-          // 메시지 래퍼 (템플릿 적용)
           var msgStyle = '';
           if (tpl) {
             var mBg = msg.speaker.type === 'user' ? tpl.userBg : tpl.aiBg;
@@ -403,16 +477,16 @@
         }
         html += '</div>';
 
-        globalTurnIdx++;
-
-        if (mode === 'manual' && globalTurnIdx < state.parsed.turns.length) {
-          var isActive = state.manualBreaks.has(globalTurnIdx);
+        if (mode === 'manual' && (absoluteIdx + 1) < totalTurns) {
+          var isActive = state.manualBreaks.has(absoluteIdx + 1);
           html += '<button class="chapter-break-btn ' + (isActive ? 'active' : '') +
-            '" data-turn-idx="' + globalTurnIdx + '">' +
+            '" data-turn-idx="' + (absoluteIdx + 1) + '">' +
             (isActive ? '✂️ 여기서 챕터 나눔' : '➕ 여기서 챕터 나누기') + '</button>';
         }
       }
       html += '</div>';
+
+      globalTurnIdx += chTurns.length;
     }
 
     var previewContent = $('preview-content');
@@ -424,7 +498,17 @@
     previewContent.style.textAlign = textAlign;
     previewContent.style.letterSpacing = letterSpacing + 'px';
 
-    // manual 모드
+    // 페이지네이션 UI
+    if (totalPages > 1) {
+      $('preview-pagination').classList.remove('hidden');
+      $('page-info').textContent = (state.previewPage + 1) + ' / ' + totalPages + ' 페이지 (턴 ' + (pageStart + 1) + '~' + pageEnd + ')';
+      $('prev-page').disabled = state.previewPage === 0;
+      $('next-page').disabled = state.previewPage >= totalPages - 1;
+    } else {
+      $('preview-pagination').classList.add('hidden');
+    }
+
+    // manual 모드 이벤트
     if (mode === 'manual') {
       document.querySelectorAll('.chapter-break-btn').forEach(function (btn) {
         btn.addEventListener('click', function () {
@@ -437,12 +521,70 @@
     }
   }
 
-  // ── 내보내기: epub ──
-  function exportEpub() {
+  // ── 내보내기 (일괄 + 분할) ──
+  function doExport(type) {
     if (!state.chapters.length) { showToast('❌ 변환할 내용이 없습니다'); return; }
-    showToast('📚 epub 생성 중...', 0);
 
-    var opts = {
+    var exportMode = document.querySelector('input[name="export-mode"]:checked').value;
+
+    if (exportMode === 'all') {
+      if (type === 'epub') exportEpub(state.chapters);
+      else exportHtmlFile(state.chapters);
+    } else {
+      exportSplit(type);
+    }
+  }
+
+  function exportSplit(type) {
+    var splitUnit = document.querySelector('input[name="split-unit"]:checked').value;
+    var splitSize = parseInt($('split-size').value) || 10;
+    var chunks = [];
+
+    if (splitUnit === 'chapter') {
+      for (var i = 0; i < state.chapters.length; i += splitSize) {
+        chunks.push(state.chapters.slice(i, Math.min(i + splitSize, state.chapters.length)));
+      }
+    } else {
+      // 턴 단위 분할
+      var allTurns = state.parsed.turns;
+      var format = $('chapter-format').value;
+      for (var t = 0; t < allTurns.length; t += splitSize) {
+        var end = Math.min(t + splitSize, allTurns.length);
+        var slicedTurns = allTurns.slice(t, end);
+        chunks.push([{
+          title: getChapterTitle(format, chunks.length, t, end - 1),
+          turns: slicedTurns
+        }]);
+      }
+    }
+
+    showToast('📦 ' + chunks.length + '개 파일 생성 중...', 0);
+    var title = $('meta-title').value || 'chat';
+
+    if (type === 'epub') {
+      var promises = chunks.map(function (chunk, idx) {
+        var opts = getEpubOptions();
+        opts.title = title + ' (' + (idx + 1) + '/' + chunks.length + ')';
+        return EpubBuilder.build(chunk, opts).then(function (blob) {
+          return { blob: blob, filename: title + '_' + (idx + 1) + '.epub' };
+        });
+      });
+      Promise.all(promises).then(function (results) {
+        results.forEach(function (r) { downloadBlob(r.blob, r.filename); });
+        showToast('✅ ' + results.length + '개 epub 저장 완료!');
+      });
+    } else {
+      chunks.forEach(function (chunk, idx) {
+        var htmlContent = HtmlBuilder.build(chunk, getHtmlOptions());
+        var blob = new Blob([htmlContent], { type: 'text/html;charset=utf-8' });
+        downloadBlob(blob, title + '_' + (idx + 1) + '.html');
+      });
+      showToast('✅ ' + chunks.length + '개 html 저장 완료!');
+    }
+  }
+
+  function getEpubOptions() {
+    return {
       title: $('meta-title').value || '채팅 백업',
       author: $('meta-author').value || '',
       coverData: state.coverData,
@@ -451,16 +593,13 @@
       formatOptions: getFormatOptions(),
       lineHeight: parseFloat($('html-line-height').value),
     };
+  }
 
-    EpubBuilder.build(state.chapters, opts).then(function (blob) {
-      var url = URL.createObjectURL(blob);
-      var a = document.createElement('a');
-      a.href = url;
-      a.download = (opts.title || 'chat') + '.epub';
-      document.body.appendChild(a);
-      a.click();
-      document.body.removeChild(a);
-      URL.revokeObjectURL(url);
+  function exportEpub(chapters) {
+    showToast('📚 epub 생성 중...', 0);
+    var opts = getEpubOptions();
+    EpubBuilder.build(chapters, opts).then(function (blob) {
+      downloadBlob(blob, (opts.title || 'chat') + '.epub');
       showToast('✅ epub 저장 완료!');
     }).catch(function (e) {
       console.error(e);
@@ -468,12 +607,22 @@
     });
   }
 
-  // ── 내보내기: HTML 파일 ──
-  function exportHtmlFile() {
-    if (!state.chapters.length) { showToast('❌ 변환할 내용이 없습니다'); return; }
-    var html = HtmlBuilder.build(state.chapters, getHtmlOptions());
-    HtmlBuilder.download(html, $('meta-title').value || 'chat');
+  function exportHtmlFile(chapters) {
+    var html = HtmlBuilder.build(chapters, getHtmlOptions());
+    var blob = new Blob([html], { type: 'text/html;charset=utf-8' });
+    downloadBlob(blob, ($('meta-title').value || 'chat') + '.html');
     showToast('✅ html 파일 저장 완료!');
+  }
+
+  function downloadBlob(blob, filename) {
+    var url = URL.createObjectURL(blob);
+    var a = document.createElement('a');
+    a.href = url;
+    a.download = filename;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
   }
 
   // ── HTML 코드 보기 ──
