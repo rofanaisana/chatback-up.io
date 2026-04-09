@@ -5,7 +5,6 @@
 (function () {
   'use strict';
 
-  // ── 상태 ──
   var state = {
     rawText: '',
     parsed: null,
@@ -16,10 +15,8 @@
     coverType: '',
   };
 
-  // ── DOM ──
   var $ = function (id) { return document.getElementById(id); };
 
-  // ── 초기화 ──
   function init() {
     bindEvents();
   }
@@ -28,7 +25,6 @@
     // 파일 업로드
     var dropZone = $('drop-zone');
     var fileInput = $('file-input');
-
     dropZone.addEventListener('click', function () { fileInput.click(); });
     dropZone.addEventListener('dragover', function (e) { e.preventDefault(); dropZone.classList.add('drag-over'); });
     dropZone.addEventListener('dragleave', function () { dropZone.classList.remove('drag-over'); });
@@ -48,18 +44,17 @@
     document.querySelectorAll('input[name="chapter-mode"]').forEach(function (r) {
       r.addEventListener('change', onChapterModeChange);
     });
-    ['group-size', 'fmt-dialogue'].forEach(function (id) {
+    ['group-size', 'fmt-dialogue', 'fmt-align'].forEach(function (id) {
       var el = $(id);
       if (el) el.addEventListener('change', refreshAll);
     });
 
-    // 챕터 형식 변경
     $('chapter-format').addEventListener('change', function () {
       onChapterFormatChange();
       refreshAll();
     });
 
-    ['fmt-italic', 'fmt-speaker'].forEach(function (id) {
+    ['fmt-italic', 'fmt-speaker', 'fmt-indent-stage', 'fmt-indent-dialogue'].forEach(function (id) {
       var el = $(id);
       if (el) el.addEventListener('change', refreshAll);
     });
@@ -68,68 +63,80 @@
       if (el) el.addEventListener('input', refreshPreview);
     });
 
-    // 줄간격 표시
-    $('html-line-height').addEventListener('input', function () {
-      $('html-lh-val').textContent = this.value;
+    // 자간 슬라이더
+    $('fmt-letter-spacing').addEventListener('input', function () {
+      $('fmt-ls-val').textContent = this.value + 'px';
+      refreshPreview();
     });
 
-    // HTML 스타일 변경 → 미리보기 갱신
-    ['html-font', 'html-line-height', 'html-padding', 'html-bg', 'html-text-color'].forEach(function (id) {
+    // 줄간격
+    $('html-line-height').addEventListener('input', function () {
+      $('html-lh-val').textContent = this.value;
+      refreshPreview();
+    });
+
+    // HTML 스타일
+    ['html-font', 'html-padding', 'html-bg', 'html-text-color'].forEach(function (id) {
       var el = $(id);
       if (el) el.addEventListener('input', refreshPreview);
     });
 
-    // 내보내기 버튼
+    // 내보내기
     $('btn-epub').addEventListener('click', exportEpub);
     $('btn-html-download').addEventListener('click', exportHtmlFile);
     $('btn-html-code').addEventListener('click', showHtmlCode);
     $('btn-copy-code').addEventListener('click', copyHtmlCode);
-    $('btn-close-code').addEventListener('click', function () { $('code-area').classList.add('hidden'); });
+    $('btn-back-preview').addEventListener('click', backToPreview);
 
-    // 챕터 이름 편집 버튼
+    // 챕터 편집
     var editBtn = $('btn-edit-chapters');
     if (editBtn) editBtn.addEventListener('click', openChapterModal);
-
-    // 챕터 모달 버튼
     $('chapter-modal-cancel').addEventListener('click', closeChapterModal);
     $('chapter-modal-save').addEventListener('click', saveChapterNames);
-
-    // 모달 오버레이 클릭 닫기
     $('chapter-modal').addEventListener('click', function (e) {
       if (e.target === $('chapter-modal')) closeChapterModal();
     });
 
-    // 스피커 표시 토글
+    // 스피커 토글
     $('fmt-speaker').addEventListener('change', function () {
       $('speaker-style-wrap').style.display = this.checked ? 'block' : 'none';
     });
+
+    // 템플릿 토글
+    $('tpl-enable').addEventListener('change', function () {
+      $('tpl-options').classList.toggle('hidden', !this.checked);
+      refreshPreview();
+    });
+
+    // 템플릿 옵션 변경 → 미리보기
+    ['tpl-turn-bg', 'tpl-turn-border', 'tpl-turn-border-width', 'tpl-turn-radius',
+     'tpl-turn-padding', 'tpl-turn-gap', 'tpl-user-bg', 'tpl-ai-bg',
+     'tpl-msg-radius', 'tpl-msg-padding', 'tpl-chapter-divider'].forEach(function (id) {
+      var el = $(id);
+      if (el) el.addEventListener('input', refreshPreview);
+    });
   }
 
-  // ── 파일 처리 ──
+  // ── 파일 ──
   function handleFile(file) {
     if (!file.name.endsWith('.txt')) {
       showToast('❌ txt 파일만 지원합니다');
       return;
     }
-
     var reader = new FileReader();
     reader.onload = function (e) {
       state.rawText = e.target.result;
       state.parsed = ChatParser.parse(state.rawText);
       state.manualBreaks = new Set();
       state.chapterNames = [];
-
       $('file-name').textContent = '📄 ' + file.name;
       $('file-info').classList.remove('hidden');
       $('drop-zone').classList.add('hidden');
-
       if (state.parsed.header.title) {
         $('meta-title').value = state.parsed.header.title;
       }
-
       showPanels();
       refreshAll();
-
       showToast('✅ ' + state.parsed.turns.length + '개 턴 감지!');
     };
     reader.readAsText(file, 'UTF-8');
@@ -141,11 +148,9 @@
     state.chapters = [];
     state.manualBreaks = new Set();
     state.chapterNames = [];
-
     $('file-info').classList.add('hidden');
     $('drop-zone').classList.remove('hidden');
     $('file-input').value = '';
-
     hidePanels();
     $('empty-state').classList.remove('hidden');
     $('preview-area').classList.add('hidden');
@@ -153,16 +158,17 @@
   }
 
   function showPanels() {
-    ['meta-panel', 'chapter-panel', 'format-panel', 'html-style-panel', 'export-panel'].forEach(function (id) {
+    ['meta-panel', 'chapter-panel', 'format-panel', 'html-style-panel', 'template-panel', 'export-panel'].forEach(function (id) {
       $(id).classList.remove('hidden');
     });
     $('empty-state').classList.add('hidden');
     $('preview-area').classList.remove('hidden');
-    onChapterFormatChange(); // 직접 입력이면 편집 버튼 보이기
+    $('code-area').classList.add('hidden');
+    onChapterFormatChange();
   }
 
   function hidePanels() {
-    ['meta-panel', 'chapter-panel', 'format-panel', 'html-style-panel', 'export-panel'].forEach(function (id) {
+    ['meta-panel', 'chapter-panel', 'format-panel', 'html-style-panel', 'template-panel', 'export-panel'].forEach(function (id) {
       $(id).classList.add('hidden');
     });
     var editBtn = $('btn-edit-chapters');
@@ -190,79 +196,56 @@
     $('cover-preview').classList.add('hidden');
   }
 
-  // ── 챕터 모드 ──
+  // ── 챕터 ──
   function onChapterModeChange() {
     var mode = document.querySelector('input[name="chapter-mode"]:checked').value;
     $('group-size-wrap').classList.toggle('hidden', mode !== 'group');
     refreshAll();
   }
 
-  // ── 챕터 형식 변경 → '직접 입력' 시 편집 버튼 표시 ──
   function onChapterFormatChange() {
     var format = $('chapter-format').value;
     var editBtn = $('btn-edit-chapters');
-    if (editBtn) {
-      if (format === 'custom') {
-        editBtn.classList.remove('hidden');
-      } else {
-        editBtn.classList.add('hidden');
-      }
-    }
+    if (editBtn) editBtn.classList.toggle('hidden', format !== 'custom');
   }
 
-  // ── 챕터 이름 편집 모달 ──
   function openChapterModal() {
-    if (!state.chapters.length) {
-      showToast('❌ 먼저 파일을 업로드하세요');
-      return;
-    }
-
+    if (!state.chapters.length) { showToast('❌ 먼저 파일을 업로드하세요'); return; }
     var listEl = $('chapter-list');
     listEl.innerHTML = '';
-
     for (var i = 0; i < state.chapters.length; i++) {
       var item = document.createElement('div');
       item.className = 'chapter-item';
-
       var span = document.createElement('span');
       span.textContent = (i + 1) + '.';
-
       var input = document.createElement('input');
       input.type = 'text';
       input.value = state.chapterNames[i] || state.chapters[i].title;
       input.dataset.idx = i;
       input.placeholder = '챕터 이름 입력';
-
       item.appendChild(span);
       item.appendChild(input);
       listEl.appendChild(item);
     }
-
     $('chapter-modal').classList.remove('hidden');
   }
 
-  function closeChapterModal() {
-    $('chapter-modal').classList.add('hidden');
-  }
+  function closeChapterModal() { $('chapter-modal').classList.add('hidden'); }
 
   function saveChapterNames() {
     var inputs = $('chapter-list').querySelectorAll('input');
     inputs.forEach(function (input) {
       var idx = parseInt(input.dataset.idx);
       var val = input.value.trim();
-      if (val) {
-        state.chapterNames[idx] = val;
-      }
+      if (val) state.chapterNames[idx] = val;
     });
     closeChapterModal();
     refreshAll();
     showToast('✅ 챕터 이름 적용 완료!');
   }
 
-  // ── 챕터 빌드 ──
   function buildChapters() {
     if (!state.parsed) return [];
-
     var turns = state.parsed.turns;
     var mode = document.querySelector('input[name="chapter-mode"]:checked').value;
     var format = $('chapter-format').value;
@@ -270,59 +253,40 @@
 
     if (mode === 'per-turn') {
       for (var i = 0; i < turns.length; i++) {
-        chapters.push({
-          title: getChapterTitle(format, i, i, i),
-          turns: [turns[i]]
-        });
+        chapters.push({ title: getChapterTitle(format, i, i, i), turns: [turns[i]] });
       }
     } else if (mode === 'group') {
       var size = parseInt($('group-size').value) || 10;
       for (var g = 0; g < turns.length; g += size) {
         var end = Math.min(g + size, turns.length);
-        chapters.push({
-          title: getChapterTitle(format, chapters.length, g, end - 1),
-          turns: turns.slice(g, end)
-        });
+        chapters.push({ title: getChapterTitle(format, chapters.length, g, end - 1), turns: turns.slice(g, end) });
       }
     } else if (mode === 'manual') {
       var breakPoints = Array.from(state.manualBreaks).sort(function (a, b) { return a - b; });
       var prev = 0;
       for (var b = 0; b < breakPoints.length; b++) {
-        chapters.push({
-          title: getChapterTitle(format, chapters.length, prev, breakPoints[b] - 1),
-          turns: turns.slice(prev, breakPoints[b])
-        });
+        chapters.push({ title: getChapterTitle(format, chapters.length, prev, breakPoints[b] - 1), turns: turns.slice(prev, breakPoints[b]) });
         prev = breakPoints[b];
       }
       if (prev < turns.length) {
-        chapters.push({
-          title: getChapterTitle(format, chapters.length, prev, turns.length - 1),
-          turns: turns.slice(prev)
-        });
+        chapters.push({ title: getChapterTitle(format, chapters.length, prev, turns.length - 1), turns: turns.slice(prev) });
       }
     }
 
-    // 커스텀 이름 적용
     for (var c = 0; c < chapters.length; c++) {
-      if (state.chapterNames[c]) {
-        chapters[c].title = state.chapterNames[c];
-      }
+      if (state.chapterNames[c]) chapters[c].title = state.chapterNames[c];
     }
-
     state.chapters = chapters;
     return chapters;
   }
 
   function getChapterTitle(format, idx, fromTurn, toTurn) {
-    // custom 모드이고 이미 저장된 이름이 있으면 그걸 우선 사용
-    if (format === 'custom' && state.chapterNames[idx]) {
-      return state.chapterNames[idx];
-    }
+    if (format === 'custom' && state.chapterNames[idx]) return state.chapterNames[idx];
     switch (format) {
       case 'chapter': return 'Chapter ' + (idx + 1);
       case 'jang': return (idx + 1) + '장';
       case 'turn': return 'Turn ' + (fromTurn + 1) + '~' + (toTurn + 1);
-      case 'custom': return (idx + 1) + '장'; // 기본값
+      case 'custom': return (idx + 1) + '장';
       default: return 'Chapter ' + (idx + 1);
     }
   }
@@ -332,6 +296,27 @@
     return {
       italic: $('fmt-italic').checked,
       dialogueStyle: $('fmt-dialogue').value,
+      textAlign: $('fmt-align').value,
+      letterSpacing: parseFloat($('fmt-letter-spacing').value),
+      indentStage: $('fmt-indent-stage').checked,
+      indentDialogue: $('fmt-indent-dialogue').checked,
+    };
+  }
+
+  function getTemplateOptions() {
+    if (!$('tpl-enable').checked) return null;
+    return {
+      turnBg: $('tpl-turn-bg').value,
+      turnBorder: $('tpl-turn-border').value,
+      turnBorderWidth: parseInt($('tpl-turn-border-width').value) || 1,
+      turnRadius: parseInt($('tpl-turn-radius').value) || 12,
+      turnPadding: parseInt($('tpl-turn-padding').value) || 20,
+      turnGap: parseInt($('tpl-turn-gap').value) || 16,
+      userBg: $('tpl-user-bg').value,
+      aiBg: $('tpl-ai-bg').value,
+      msgRadius: parseInt($('tpl-msg-radius').value) || 8,
+      msgPadding: parseInt($('tpl-msg-padding').value) || 12,
+      chapterDivider: $('tpl-chapter-divider').value,
     };
   }
 
@@ -347,6 +332,7 @@
       userColor: $('style-user-color').value,
       aiColor: $('style-ai-color').value,
       formatOptions: getFormatOptions(),
+      template: getTemplateOptions(),
     };
   }
 
@@ -365,12 +351,14 @@
     var userColor = $('style-user-color').value;
     var aiColor = $('style-ai-color').value;
     var mode = document.querySelector('input[name="chapter-mode"]:checked').value;
+    var tpl = getTemplateOptions();
 
-    // HTML 스타일 옵션 → 미리보기에도 반영
     var fontFamily = $('html-font').value;
     var lineHeight = parseFloat($('html-line-height').value);
     var bgColor = $('html-bg').value;
     var textColor = $('html-text-color').value;
+    var textAlign = formatOpts.textAlign || 'left';
+    var letterSpacing = formatOpts.letterSpacing || 0;
 
     $('turn-count').textContent = state.parsed.turns.length + '개 턴 · ' + chapters.length + '개 챕터';
 
@@ -384,9 +372,26 @@
       for (var t = 0; t < chapters[c].turns.length; t++) {
         var turn = chapters[c].turns[t];
 
-        html += '<div class="preview-turn">';
+        // 턴 래퍼 (템플릿 적용)
+        if (tpl) {
+          html += '<div class="preview-turn" style="background:' + tpl.turnBg +
+            ';border:' + tpl.turnBorderWidth + 'px solid ' + tpl.turnBorder +
+            ';border-radius:' + tpl.turnRadius + 'px;padding:' + tpl.turnPadding +
+            'px;margin-bottom:' + tpl.turnGap + 'px;">';
+        } else {
+          html += '<div class="preview-turn">';
+        }
+
         for (var m = 0; m < turn.messages.length; m++) {
           var msg = turn.messages[m];
+
+          // 메시지 래퍼 (템플릿 적용)
+          var msgStyle = '';
+          if (tpl) {
+            var mBg = msg.speaker.type === 'user' ? tpl.userBg : tpl.aiBg;
+            msgStyle = ' style="background:' + mBg + ';border-radius:' + tpl.msgRadius +
+              'px;padding:' + tpl.msgPadding + 'px;margin-bottom:8px;"';
+          }
 
           if (showSpeaker) {
             var color = msg.speaker.type === 'user' ? userColor : aiColor;
@@ -394,7 +399,7 @@
             html += '<div class="preview-speaker" style="color:' + color + ';background:' + bgc + ';">[' + ChatFormatter.escapeHtml(msg.speaker.name) + ']</div>';
           }
 
-          html += '<div class="preview-message">' + ChatFormatter.formatForPreview(msg.text, formatOpts) + '</div>';
+          html += '<div class="preview-message"' + msgStyle + '>' + ChatFormatter.formatForPreview(msg.text, formatOpts) + '</div>';
         }
         html += '</div>';
 
@@ -407,28 +412,25 @@
             (isActive ? '✂️ 여기서 챕터 나눔' : '➕ 여기서 챕터 나누기') + '</button>';
         }
       }
-
       html += '</div>';
     }
 
-    // HTML 스타일 미리보기에 반영
     var previewContent = $('preview-content');
     previewContent.innerHTML = html;
     previewContent.style.fontFamily = fontFamily;
     previewContent.style.lineHeight = lineHeight;
     previewContent.style.background = bgColor;
     previewContent.style.color = textColor;
+    previewContent.style.textAlign = textAlign;
+    previewContent.style.letterSpacing = letterSpacing + 'px';
 
-    // manual 모드 버튼 이벤트
+    // manual 모드
     if (mode === 'manual') {
       document.querySelectorAll('.chapter-break-btn').forEach(function (btn) {
         btn.addEventListener('click', function () {
           var idx = parseInt(this.dataset.turnIdx);
-          if (state.manualBreaks.has(idx)) {
-            state.manualBreaks.delete(idx);
-          } else {
-            state.manualBreaks.add(idx);
-          }
+          if (state.manualBreaks.has(idx)) state.manualBreaks.delete(idx);
+          else state.manualBreaks.add(idx);
           refreshAll();
         });
       });
@@ -438,7 +440,6 @@
   // ── 내보내기: epub ──
   function exportEpub() {
     if (!state.chapters.length) { showToast('❌ 변환할 내용이 없습니다'); return; }
-
     showToast('📚 epub 생성 중...', 0);
 
     var opts = {
@@ -448,6 +449,7 @@
       coverType: state.coverType,
       showSpeaker: $('fmt-speaker').checked,
       formatOptions: getFormatOptions(),
+      lineHeight: parseFloat($('html-line-height').value),
     };
 
     EpubBuilder.build(state.chapters, opts).then(function (blob) {
@@ -479,10 +481,13 @@
     if (!state.chapters.length) { showToast('❌ 변환할 내용이 없습니다'); return; }
     var html = HtmlBuilder.build(state.chapters, getHtmlOptions());
     $('code-output').value = html;
-
-    // 미리보기 숨기고 코드 영역 표시
     $('preview-area').classList.add('hidden');
     $('code-area').classList.remove('hidden');
+  }
+
+  function backToPreview() {
+    $('code-area').classList.add('hidden');
+    $('preview-area').classList.remove('hidden');
   }
 
   function copyHtmlCode() {
@@ -502,7 +507,6 @@
     }
   }
 
-  // ── 시작 ──
   if (document.readyState === 'loading') {
     document.addEventListener('DOMContentLoaded', init);
   } else {
