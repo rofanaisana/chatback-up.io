@@ -290,7 +290,6 @@ body {
   overflow-y: auto;
 }
 
-/* 들여쓰기 미리보기에서도 적용!! */
 #preview-content p.indent { text-indent: 1em; }
 
 .preview-chapter { margin-bottom: 32px; }
@@ -314,6 +313,26 @@ body {
 .preview-message { margin-bottom: 12px; }
 .preview-message p { margin: 0.6em 0; }
 .preview-message em { font-style: italic; color: #555; }
+
+/* ��태창 블록 미리보기 */
+.preview-message .status-block {
+  font-family: 'Fira Code', 'Consolas', monospace;
+  font-size: 12px;
+  white-space: pre-wrap;
+  margin: 0.6em 0;
+}
+.preview-message .status-block-raw { color: #64748b; }
+.preview-message .status-block-code {
+  background: #f1f5f9;
+  border: 1px solid #e2e8f0;
+  border-radius: 6px;
+  padding: 10px 12px;
+  color: #475569;
+}
+.preview-message .status-block-box {
+  border-radius: 8px;
+  padding: 10px 12px;
+}
 
 .chapter-break-btn {
   display: block;
@@ -428,6 +447,45 @@ body {
   transition: opacity 0.3s;
 }
 
+/* ── 테마 프리셋 그리드 ── */
+.theme-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 8px;
+  margin-bottom: 12px;
+}
+.theme-card {
+  border: 2px solid var(--border);
+  border-radius: 8px;
+  padding: 6px;
+  cursor: pointer;
+  background: var(--surface);
+  transition: all 0.2s;
+  text-align: center;
+}
+.theme-card:hover { border-color: var(--primary); }
+.theme-card.active { border-color: var(--primary); background: #eff6ff; box-shadow: 0 0 0 2px rgba(37,99,235,0.2); }
+.theme-preview {
+  width: 100%;
+  height: 48px;
+  border-radius: 4px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 16px;
+  font-weight: 700;
+  margin-bottom: 4px;
+}
+.theme-name { font-size: 10px; font-weight: 600; color: var(--text-sub); }
+
+.theme-none { background: #fff; border: 1px solid #e2e8f0; color: #1a1a1a; }
+.theme-newspaper { background: #fdf6e3; border: 2px solid #2c2c2c; color: #2c2c2c; font-family: serif; }
+.theme-notebook { background: #fffef5; border: 1px solid #f0e68c; color: #333; }
+.theme-letter { background: #fef7f0; border: 1px dashed #d4a574; color: #5d4037; font-style: italic; }
+.theme-book { background: #f5f0e8; border: 1px solid #c8b898; color: #3e2723; font-family: serif; }
+.theme-blog { background: #ffffff; border: 1px solid #4CAF50; color: #333; }
+.theme-custom { background: linear-gradient(135deg, #667eea, #764ba2); color: #fff; }
+
 /* ── 유틸 ── */
 .hidden { display: none !important; }
 
@@ -444,4 +502,5 @@ body {
     max-height: 50vh;
   }
   #content-area { padding: 16px; height: auto; }
+  .theme-grid { grid-template-columns: repeat(3, 1fr); }
 }
