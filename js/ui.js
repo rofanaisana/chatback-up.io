@@ -1,12 +1,60 @@
 /* ═══════════════════════════════════════
    ui.js — UI 인터랙션, 미리보기, 이벤트
-   페이지네이션 + 분할저장 + 파싱설정
+   페이지네이션 + 프리셋 + 테마 + 상태창
+   localStorage 자동 저장
    ═══════════════════════════════════════ */
 
 (function () {
   'use strict';
 
-  var PREVIEW_PAGE_SIZE = 50; // 미리보기 한 페이지에 보여줄 턴 수
+  var PREVIEW_PAGE_SIZE = 50;
+  var STORAGE_KEY = 'chatbackup_settings';
+
+  // ── 테마 프리셋 정의 ──
+  var THEME_PRESETS = {
+    none: null,
+    newspaper: {
+      turnBg: '#fdf6e3', turnBorder: '#2c2c2c', turnBorderWidth: 2, turnRadius: 0,
+      turnPadding: 24, turnGap: 0,
+      userBg: '#fdf6e3', userText: '#2c2c2c', userBorder: '#2c2c2c',
+      aiBg: '#fdf6e3', aiText: '#2c2c2c', aiBorder: '#2c2c2c',
+      msgRadius: 0, msgPadding: 16, chapterDivider: 'double',
+      // html-style 오버라이드
+      _html: { font: 'serif', bg: '#fdf6e3', textColor: '#2c2c2c', lineHeight: 1.7, padding: 48 }
+    },
+    notebook: {
+      turnBg: '#fffef5', turnBorder: '#f0e68c', turnBorderWidth: 1, turnRadius: 0,
+      turnPadding: 20, turnGap: 12,
+      userBg: '#fffef5', userText: '#333', userBorder: '#f0e68c',
+      aiBg: '#fffef5', aiText: '#333', aiBorder: '#f0e68c',
+      msgRadius: 0, msgPadding: 12, chapterDivider: 'line',
+      _html: { font: "'Noto Sans KR', sans-serif", bg: '#fffef5', textColor: '#333', lineHeight: 2.0, padding: 40 }
+    },
+    letter: {
+      turnBg: '#fef7f0', turnBorder: '#d4a574', turnBorderWidth: 1, turnRadius: 12,
+      turnPadding: 24, turnGap: 20,
+      userBg: '#fff8f0', userText: '#5d4037', userBorder: '#d4a574',
+      aiBg: '#fef7f0', aiText: '#5d4037', aiBorder: '#d4a574',
+      msgRadius: 8, msgPadding: 16, chapterDivider: 'dashed',
+      _html: { font: "'Noto Serif KR', serif", bg: '#fef7f0', textColor: '#5d4037', lineHeight: 1.9, padding: 48 }
+    },
+    book: {
+      turnBg: '#f5f0e8', turnBorder: '#c8b898', turnBorderWidth: 0, turnRadius: 0,
+      turnPadding: 16, turnGap: 8,
+      userBg: '#f5f0e8', userText: '#3e2723', userBorder: '#c8b898',
+      aiBg: '#f5f0e8', aiText: '#3e2723', aiBorder: '#c8b898',
+      msgRadius: 0, msgPadding: 8, chapterDivider: 'line',
+      _html: { font: "'Noto Serif KR', serif", bg: '#f5f0e8', textColor: '#3e2723', lineHeight: 2.0, padding: 60 }
+    },
+    blog: {
+      turnBg: '#ffffff', turnBorder: '#4CAF50', turnBorderWidth: 2, turnRadius: 16,
+      turnPadding: 24, turnGap: 20,
+      userBg: '#e8f5e9', userText: '#1b5e20', userBorder: '#a5d6a7',
+      aiBg: '#fff3e0', aiText: '#e65100', aiBorder: '#ffcc02',
+      msgRadius: 12, msgPadding: 16, chapterDivider: 'dotted',
+      _html: { font: "'Noto Sans KR', sans-serif", bg: '#ffffff', textColor: '#333', lineHeight: 1.8, padding: 40 }
+    },
+  };
 
   var state = {
     rawText: '',
@@ -17,14 +65,91 @@
     coverData: null,
     coverType: '',
     previewPage: 0,
+    currentTheme: 'none',
   };
 
   var $ = function (id) { return document.getElementById(id); };
 
   function init() {
+    loadSettingsFromStorage();
     bindEvents();
   }
 
+  // ═══════════════════════════════════════
+  // 설정 저장/불러오기 (localStorage)
+  // ═══════════════════════════════════════
+  var SAVEABLE_IDS = [
+    'fmt-italic', 'fmt-auto-dialogue', 'fmt-dialogue', 'fmt-align',
+    'fmt-letter-spacing', 'fmt-indent-stage', 'fmt-indent-dialogue',
+    'fmt-speaker', 'style-user-color', 'style-ai-color',
+    'html-font', 'html-line-height', 'html-padding', 'html-bg', 'html-text-color',
+    'tpl-turn-bg', 'tpl-turn-border', 'tpl-turn-border-width', 'tpl-turn-radius',
+    'tpl-turn-padding', 'tpl-turn-gap', 'tpl-user-bg', 'tpl-user-text', 'tpl-user-border',
+    'tpl-ai-bg', 'tpl-ai-text', 'tpl-ai-border',
+    'tpl-msg-radius', 'tpl-msg-padding', 'tpl-chapter-divider',
+    'fmt-status-block', 'fmt-status-marker', 'fmt-status-end-marker', 'fmt-status-style',
+    'fmt-status-bg', 'fmt-status-border', 'fmt-status-text',
+    'chapter-format', 'group-size',
+  ];
+
+  function collectSettings() {
+    var data = { _theme: state.currentTheme };
+    SAVEABLE_IDS.forEach(function (id) {
+      var el = $(id);
+      if (!el) return;
+      if (el.type === 'checkbox') data[id] = el.checked;
+      else data[id] = el.value;
+    });
+    // chapter-mode radio
+    var mode = document.querySelector('input[name="chapter-mode"]:checked');
+    if (mode) data['chapter-mode'] = mode.value;
+    return data;
+  }
+
+  function applySettings(data) {
+    if (!data) return;
+    if (data._theme) state.currentTheme = data._theme;
+    SAVEABLE_IDS.forEach(function (id) {
+      var el = $(id);
+      if (!el || data[id] === undefined) return;
+      if (el.type === 'checkbox') el.checked = data[id];
+      else el.value = data[id];
+    });
+    // chapter-mode radio
+    if (data['chapter-mode']) {
+      var radio = document.querySelector('input[name="chapter-mode"][value="' + data['chapter-mode'] + '"]');
+      if (radio) radio.checked = true;
+    }
+    // UI 동기화
+    $('fmt-ls-val').textContent = $('fmt-letter-spacing').value + 'px';
+    $('html-lh-val').textContent = $('html-line-height').value;
+    $('speaker-style-wrap').style.display = $('fmt-speaker').checked ? 'block' : 'none';
+    $('status-block-options').classList.toggle('hidden', !$('fmt-status-block').checked);
+    updateStatusBoxVisibility();
+    $('group-size-wrap').classList.toggle('hidden',
+      !document.querySelector('input[name="chapter-mode"][value="group"]').checked);
+
+    // 테마 카드 활성화
+    document.querySelectorAll('.theme-card').forEach(function (c) {
+      c.classList.toggle('active', c.dataset.theme === state.currentTheme);
+    });
+    $('tpl-options').classList.toggle('hidden', state.currentTheme !== 'custom');
+  }
+
+  function saveSettingsToStorage() {
+    try { localStorage.setItem(STORAGE_KEY, JSON.stringify(collectSettings())); } catch (e) {}
+  }
+
+  function loadSettingsFromStorage() {
+    try {
+      var raw = localStorage.getItem(STORAGE_KEY);
+      if (raw) applySettings(JSON.parse(raw));
+    } catch (e) {}
+  }
+
+  // ═══════════════════════════════════════
+  // 이벤트 바인딩
+  // ═══════════════════════════════════════
   function bindEvents() {
     // 파일 업로드
     var dropZone = $('drop-zone');
@@ -40,6 +165,11 @@
     fileInput.addEventListener('change', function () { if (fileInput.files.length) handleFile(fileInput.files[0]); });
     $('file-clear').addEventListener('click', clearFile);
 
+    // 프리셋
+    $('btn-preset-save').addEventListener('click', downloadPreset);
+    $('btn-preset-load').addEventListener('click', function () { $('preset-file-input').click(); });
+    $('preset-file-input').addEventListener('change', loadPresetFile);
+
     // 표지
     $('cover-input').addEventListener('change', handleCover);
     $('cover-clear').addEventListener('click', clearCover);
@@ -49,43 +179,78 @@
 
     // 챕터 모드
     document.querySelectorAll('input[name="chapter-mode"]').forEach(function (r) {
-      r.addEventListener('change', onChapterModeChange);
+      r.addEventListener('change', function () { onChapterModeChange(); saveSettingsToStorage(); });
     });
-    ['group-size'].forEach(function (id) {
-      var el = $(id);
-      if (el) el.addEventListener('change', refreshAll);
-    });
-    ['fmt-dialogue', 'fmt-align'].forEach(function (id) {
-      var el = $(id);
-      if (el) el.addEventListener('change', function () { state.previewPage = 0; refreshAll(); });
-    });
-
+    $('group-size').addEventListener('change', function () { refreshAll(); saveSettingsToStorage(); });
     $('chapter-format').addEventListener('change', function () {
       onChapterFormatChange();
       refreshAll();
+      saveSettingsToStorage();
     });
 
+    // 서식
     ['fmt-italic', 'fmt-speaker', 'fmt-indent-stage', 'fmt-indent-dialogue', 'fmt-auto-dialogue'].forEach(function (id) {
       var el = $(id);
-      if (el) el.addEventListener('change', function () { state.previewPage = 0; refreshAll(); });
+      if (el) el.addEventListener('change', function () { state.previewPage = 0; refreshAll(); saveSettingsToStorage(); });
+    });
+    ['fmt-dialogue', 'fmt-align'].forEach(function (id) {
+      var el = $(id);
+      if (el) el.addEventListener('change', function () { state.previewPage = 0; refreshAll(); saveSettingsToStorage(); });
     });
     ['style-user-color', 'style-ai-color'].forEach(function (id) {
       var el = $(id);
-      if (el) el.addEventListener('input', refreshPreview);
+      if (el) el.addEventListener('input', function () { refreshPreview(); saveSettingsToStorage(); });
     });
 
     $('fmt-letter-spacing').addEventListener('input', function () {
       $('fmt-ls-val').textContent = this.value + 'px';
-      refreshPreview();
+      refreshPreview(); saveSettingsToStorage();
     });
     $('html-line-height').addEventListener('input', function () {
       $('html-lh-val').textContent = this.value;
-      refreshPreview();
+      refreshPreview(); saveSettingsToStorage();
     });
 
     ['html-font', 'html-padding', 'html-bg', 'html-text-color'].forEach(function (id) {
       var el = $(id);
-      if (el) el.addEventListener('input', refreshPreview);
+      if (el) el.addEventListener('input', function () { refreshPreview(); saveSettingsToStorage(); });
+    });
+
+    // 스피커 토글
+    $('fmt-speaker').addEventListener('change', function () {
+      $('speaker-style-wrap').style.display = this.checked ? 'block' : 'none';
+    });
+
+    // 상태창 토글
+    $('fmt-status-block').addEventListener('change', function () {
+      $('status-block-options').classList.toggle('hidden', !this.checked);
+      state.previewPage = 0; refreshAll(); saveSettingsToStorage();
+    });
+    ['fmt-status-marker', 'fmt-status-end-marker'].forEach(function (id) {
+      var el = $(id);
+      if (el) el.addEventListener('input', function () { state.previewPage = 0; refreshAll(); saveSettingsToStorage(); });
+    });
+    $('fmt-status-style').addEventListener('change', function () {
+      updateStatusBoxVisibility();
+      state.previewPage = 0; refreshAll(); saveSettingsToStorage();
+    });
+    ['fmt-status-bg', 'fmt-status-border', 'fmt-status-text'].forEach(function (id) {
+      var el = $(id);
+      if (el) el.addEventListener('input', function () { refreshPreview(); saveSettingsToStorage(); });
+    });
+
+    // 테마 카드 클릭
+    document.querySelectorAll('.theme-card').forEach(function (card) {
+      card.addEventListener('click', function () { selectTheme(this.dataset.theme); });
+    });
+
+    // 커스텀 템플릿 옵션
+    ['tpl-turn-bg', 'tpl-turn-border', 'tpl-turn-border-width', 'tpl-turn-radius',
+     'tpl-turn-padding', 'tpl-turn-gap', 'tpl-user-bg', 'tpl-user-text', 'tpl-user-border',
+     'tpl-ai-bg', 'tpl-ai-text', 'tpl-ai-border',
+     'tpl-msg-radius', 'tpl-msg-padding', 'tpl-chapter-divider'].forEach(function (id) {
+      var el = $(id);
+      if (el) el.addEventListener('input', function () { refreshPreview(); saveSettingsToStorage(); });
     });
 
     // 내보내기
@@ -103,30 +268,11 @@
     });
 
     // 챕터 편집
-    var editBtn = $('btn-edit-chapters');
-    if (editBtn) editBtn.addEventListener('click', openChapterModal);
+    $('btn-edit-chapters').addEventListener('click', openChapterModal);
     $('chapter-modal-cancel').addEventListener('click', closeChapterModal);
     $('chapter-modal-save').addEventListener('click', saveChapterNames);
     $('chapter-modal').addEventListener('click', function (e) {
       if (e.target === $('chapter-modal')) closeChapterModal();
-    });
-
-    // 스피커 토글
-    $('fmt-speaker').addEventListener('change', function () {
-      $('speaker-style-wrap').style.display = this.checked ? 'block' : 'none';
-    });
-
-    // 템플릿 토글
-    $('tpl-enable').addEventListener('change', function () {
-      $('tpl-options').classList.toggle('hidden', !this.checked);
-      refreshPreview();
-    });
-
-    ['tpl-turn-bg', 'tpl-turn-border', 'tpl-turn-border-width', 'tpl-turn-radius',
-     'tpl-turn-padding', 'tpl-turn-gap', 'tpl-user-bg', 'tpl-ai-bg',
-     'tpl-msg-radius', 'tpl-msg-padding', 'tpl-chapter-divider'].forEach(function (id) {
-      var el = $(id);
-      if (el) el.addEventListener('input', refreshPreview);
     });
 
     // 페이지네이션
@@ -140,7 +286,105 @@
     });
   }
 
-  // ── 파일 ──
+  function updateStatusBoxVisibility() {
+    var style = $('fmt-status-style').value;
+    $('status-box-colors').classList.toggle('hidden', style !== 'box');
+  }
+
+  // ═══════════════════════════════════════
+  // 테마 시스템
+  // ═══════════════════════════════════════
+  function selectTheme(name) {
+    state.currentTheme = name;
+
+    // 카드 활성화
+    document.querySelectorAll('.theme-card').forEach(function (c) {
+      c.classList.toggle('active', c.dataset.theme === name);
+    });
+
+    // 커스텀이면 옵션 표시
+    $('tpl-options').classList.toggle('hidden', name !== 'custom');
+
+    // 프리셋 적용
+    var preset = THEME_PRESETS[name];
+    if (preset) {
+      // 템플릿 값 적용
+      setVal('tpl-turn-bg', preset.turnBg);
+      setVal('tpl-turn-border', preset.turnBorder);
+      setVal('tpl-turn-border-width', preset.turnBorderWidth);
+      setVal('tpl-turn-radius', preset.turnRadius);
+      setVal('tpl-turn-padding', preset.turnPadding);
+      setVal('tpl-turn-gap', preset.turnGap);
+      setVal('tpl-user-bg', preset.userBg);
+      setVal('tpl-user-text', preset.userText || '#1a1a1a');
+      setVal('tpl-user-border', preset.userBorder || '#bfdbfe');
+      setVal('tpl-ai-bg', preset.aiBg);
+      setVal('tpl-ai-text', preset.aiText || '#1a1a1a');
+      setVal('tpl-ai-border', preset.aiBorder || '#ddd6fe');
+      setVal('tpl-msg-radius', preset.msgRadius);
+      setVal('tpl-msg-padding', preset.msgPadding);
+      setVal('tpl-chapter-divider', preset.chapterDivider);
+
+      // HTML 스타일 오버라이드
+      if (preset._html) {
+        setVal('html-font', preset._html.font);
+        setVal('html-bg', preset._html.bg);
+        setVal('html-text-color', preset._html.textColor);
+        setVal('html-line-height', preset._html.lineHeight);
+        $('html-lh-val').textContent = preset._html.lineHeight;
+        setVal('html-padding', preset._html.padding);
+      }
+    }
+
+    refreshPreview();
+    saveSettingsToStorage();
+  }
+
+  function setVal(id, val) {
+    var el = $(id);
+    if (el && val !== undefined) el.value = val;
+  }
+
+  // ═══════════════════════════════════════
+  // 프리셋 다운로드/불러오기
+  // ═══════════════════════════════════════
+  function downloadPreset() {
+    var data = collectSettings();
+    var json = JSON.stringify(data, null, 2);
+    var blob = new Blob([json], { type: 'application/json' });
+    var url = URL.createObjectURL(blob);
+    var a = document.createElement('a');
+    a.href = url;
+    a.download = 'chatbackup-preset.json';
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+    showToast('📥 프리셋 다운로드 완료!');
+  }
+
+  function loadPresetFile() {
+    var file = $('preset-file-input').files[0];
+    if (!file) return;
+    var reader = new FileReader();
+    reader.onload = function (e) {
+      try {
+        var data = JSON.parse(e.target.result);
+        applySettings(data);
+        saveSettingsToStorage();
+        refreshAll();
+        showToast('📤 프리셋 불러오기 완료!');
+      } catch (err) {
+        showToast('❌ 프리셋 파일 오류: ' + err.message);
+      }
+    };
+    reader.readAsText(file, 'UTF-8');
+    $('preset-file-input').value = '';
+  }
+
+  // ═══════════════════════════════════════
+  // 파일
+  // ═══════════════════════════════════════
   function handleFile(file) {
     if (!file.name.endsWith('.txt')) {
       showToast('❌ txt 파일만 지원합니다');
@@ -224,8 +468,7 @@
     ['parse-panel', 'meta-panel', 'chapter-panel', 'format-panel', 'html-style-panel', 'template-panel', 'export-panel'].forEach(function (id) {
       $(id).classList.add('hidden');
     });
-    var editBtn = $('btn-edit-chapters');
-    if (editBtn) editBtn.classList.add('hidden');
+    $('btn-edit-chapters').classList.add('hidden');
   }
 
   // ── 표지 ──
@@ -259,8 +502,7 @@
 
   function onChapterFormatChange() {
     var format = $('chapter-format').value;
-    var editBtn = $('btn-edit-chapters');
-    if (editBtn) editBtn.classList.toggle('hidden', format !== 'custom');
+    $('btn-edit-chapters').classList.toggle('hidden', format !== 'custom');
   }
 
   function openChapterModal() {
@@ -347,6 +589,19 @@
 
   // ── 옵션 수집 ──
   function getFormatOptions() {
+    var statusOpts = {};
+    if ($('fmt-status-block').checked) {
+      statusOpts = {
+        marker: $('fmt-status-marker').value,
+        endMarker: $('fmt-status-end-marker').value,
+        style: $('fmt-status-style').value,
+        colors: {
+          bg: $('fmt-status-bg').value,
+          border: $('fmt-status-border').value,
+          text: $('fmt-status-text').value,
+        }
+      };
+    }
     return {
       italic: $('fmt-italic').checked,
       dialogueStyle: $('fmt-dialogue').value,
@@ -355,11 +610,14 @@
       indentStage: $('fmt-indent-stage').checked,
       indentDialogue: $('fmt-indent-dialogue').checked,
       autoDialogue: $('fmt-auto-dialogue').checked,
+      statusBlock: statusOpts,
     };
   }
 
   function getTemplateOptions() {
-    if (!$('tpl-enable').checked) return null;
+    if (state.currentTheme === 'none') return null;
+
+    // 프리셋이든 커스텀이든 현재 값 사용
     return {
       turnBg: $('tpl-turn-bg').value,
       turnBorder: $('tpl-turn-border').value,
@@ -368,7 +626,11 @@
       turnPadding: parseInt($('tpl-turn-padding').value) || 20,
       turnGap: parseInt($('tpl-turn-gap').value) || 16,
       userBg: $('tpl-user-bg').value,
+      userText: $('tpl-user-text').value || '#1a1a1a',
+      userBorder: $('tpl-user-border').value || '#bfdbfe',
       aiBg: $('tpl-ai-bg').value,
+      aiText: $('tpl-ai-text').value || '#1a1a1a',
+      aiBorder: $('tpl-ai-border').value || '#ddd6fe',
       msgRadius: parseInt($('tpl-msg-radius').value) || 8,
       msgPadding: parseInt($('tpl-msg-padding').value) || 12,
       chapterDivider: $('tpl-chapter-divider').value,
@@ -391,7 +653,7 @@
     };
   }
 
-  // ── 미리보기 (페이지네이션) ──
+  // ── 미리보기 ──
   function refreshAll() {
     buildChapters();
     refreshPreview();
@@ -421,11 +683,9 @@
 
     $('turn-count').textContent = totalTurns + '개 턴 · ' + chapters.length + '개 챕터';
 
-    // 페이지네이션: 현재 페이지에 해당하는 턴 범위
     var pageStart = state.previewPage * PREVIEW_PAGE_SIZE;
     var pageEnd = Math.min(pageStart + PREVIEW_PAGE_SIZE, totalTurns);
 
-    // 어떤 챕터의 어떤 턴이 이 범위에 해당하는지 계산
     var html = '';
     var globalTurnIdx = 0;
 
@@ -434,7 +694,6 @@
       var chStart = globalTurnIdx;
       var chEnd = globalTurnIdx + chTurns.length;
 
-      // 이 챕터가 현재 페이지 범위와 겹치는지
       if (chEnd <= pageStart || chStart >= pageEnd) {
         globalTurnIdx += chTurns.length;
         continue;
@@ -463,8 +722,11 @@
           var msgStyle = '';
           if (tpl) {
             var mBg = msg.speaker.type === 'user' ? tpl.userBg : tpl.aiBg;
-            msgStyle = ' style="background:' + mBg + ';border-radius:' + tpl.msgRadius +
-              'px;padding:' + tpl.msgPadding + 'px;margin-bottom:8px;"';
+            var mText = msg.speaker.type === 'user' ? tpl.userText : tpl.aiText;
+            var mBorder = msg.speaker.type === 'user' ? tpl.userBorder : tpl.aiBorder;
+            msgStyle = ' style="background:' + mBg + ';color:' + mText +
+              ';border:1px solid ' + mBorder +
+              ';border-radius:' + tpl.msgRadius + 'px;padding:' + tpl.msgPadding + 'px;margin-bottom:8px;"';
           }
 
           if (showSpeaker) {
@@ -485,7 +747,6 @@
         }
       }
       html += '</div>';
-
       globalTurnIdx += chTurns.length;
     }
 
@@ -498,7 +759,6 @@
     previewContent.style.textAlign = textAlign;
     previewContent.style.letterSpacing = letterSpacing + 'px';
 
-    // 페이지네이션 UI
     if (totalPages > 1) {
       $('preview-pagination').classList.remove('hidden');
       $('page-info').textContent = (state.previewPage + 1) + ' / ' + totalPages + ' 페이지 (턴 ' + (pageStart + 1) + '~' + pageEnd + ')';
@@ -508,7 +768,6 @@
       $('preview-pagination').classList.add('hidden');
     }
 
-    // manual 모드 이벤트
     if (mode === 'manual') {
       document.querySelectorAll('.chapter-break-btn').forEach(function (btn) {
         btn.addEventListener('click', function () {
@@ -521,12 +780,10 @@
     }
   }
 
-  // ── 내보내기 (일괄 + 분할) ──
+  // ── 내보내기 ──
   function doExport(type) {
     if (!state.chapters.length) { showToast('❌ 변환할 내용이 없습니다'); return; }
-
     var exportMode = document.querySelector('input[name="export-mode"]:checked').value;
-
     if (exportMode === 'all') {
       if (type === 'epub') exportEpub(state.chapters);
       else exportHtmlFile(state.chapters);
@@ -539,21 +796,19 @@
     var splitUnit = document.querySelector('input[name="split-unit"]:checked').value;
     var splitSize = parseInt($('split-size').value) || 10;
     var chunks = [];
+    var format = $('chapter-format').value;
 
     if (splitUnit === 'chapter') {
       for (var i = 0; i < state.chapters.length; i += splitSize) {
         chunks.push(state.chapters.slice(i, Math.min(i + splitSize, state.chapters.length)));
       }
     } else {
-      // 턴 단위 분할
       var allTurns = state.parsed.turns;
-      var format = $('chapter-format').value;
       for (var t = 0; t < allTurns.length; t += splitSize) {
         var end = Math.min(t + splitSize, allTurns.length);
-        var slicedTurns = allTurns.slice(t, end);
         chunks.push([{
           title: getChapterTitle(format, chunks.length, t, end - 1),
-          turns: slicedTurns
+          turns: allTurns.slice(t, end)
         }]);
       }
     }
