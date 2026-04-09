@@ -82,12 +82,37 @@
           <select id="fmt-dialogue">
             <option value="bold">볼드</option>
             <option value="normal" selected>일반 (따옴표 유지)</option>
-            <option value="no-quote">따옴표 제거</option>
-            <option value="indent">들여쓰기</option>
+            <option value="no-quote">따옴표 제��</option>
           </select>
         </label>
 
+        <label>텍스트 정렬
+          <select id="fmt-align">
+            <option value="left" selected>왼쪽 정렬</option>
+            <option value="center">가운데 정렬</option>
+            <option value="right">우측 정렬</option>
+            <option value="justify">양쪽 정렬</option>
+          </select>
+        </label>
+
+        <label>자간 (letter-spacing)
+          <div style="display:flex;align-items:center;gap:8px;">
+            <input type="range" id="fmt-letter-spacing" min="-1" max="5" step="0.1" value="0" style="flex:1;">
+            <span id="fmt-ls-val">0px</span>
+          </div>
+        </label>
+
+        <div class="subsection-title">들여쓰기</div>
         <div class="toggle-row">
+          <span>지문 들여쓰기</span>
+          <label class="switch"><input type="checkbox" id="fmt-indent-stage"><span class="slider"></span></label>
+        </div>
+        <div class="toggle-row">
+          <span>대사 들여쓰기</span>
+          <label class="switch"><input type="checkbox" id="fmt-indent-dialogue"><span class="slider"></span></label>
+        </div>
+
+        <div class="toggle-row" style="margin-top:10px;">
           <span>유저/AI 구분 표시</span>
           <label class="switch"><input type="checkbox" id="fmt-speaker" checked><span class="slider"></span></label>
         </div>
@@ -98,9 +123,9 @@
         </div>
       </section>
 
-      <!-- 5. HTML 스타일 옵션 -->
+      <!-- 5. 스타일 옵션 (HTML + epub 공통) -->
       <section class="panel hidden" id="html-style-panel">
-        <h2>🎨 HTML 스타일</h2>
+        <h2>🎨 스타일</h2>
         <label>폰트
           <select id="html-font">
             <option value="'Noto Serif KR', serif">노토 세리프 (명조)</option>
@@ -110,15 +135,48 @@
             <option value="sans-serif">기본 Sans-serif</option>
           </select>
         </label>
-        <label>줄간격 <input type="range" id="html-line-height" min="1" max="3" step="0.1" value="1.8">
-          <span id="html-lh-val">1.8</span>
+        <label>줄간격
+          <div style="display:flex;align-items:center;gap:8px;">
+            <input type="range" id="html-line-height" min="1" max="3" step="0.1" value="1.8" style="flex:1;">
+            <span id="html-lh-val">1.8</span>
+          </div>
         </label>
         <label>여백(px) <input type="number" id="html-padding" value="40" min="0" max="200"></label>
         <label>배경색 <input type="color" id="html-bg" value="#ffffff"></label>
         <label>텍스트 색 <input type="color" id="html-text-color" value="#1a1a1a"></label>
       </section>
 
-      <!-- 6. 내보내기 버튼 -->
+      <!-- 6. HTML 턴 템플릿 (HTML 전용) -->
+      <section class="panel hidden" id="template-panel">
+        <h2>🎨 턴 템플릿 (HTML 전용)</h2>
+        <div class="toggle-row">
+          <span>턴 템플릿 사용</span>
+          <label class="switch"><input type="checkbox" id="tpl-enable"><span class="slider"></span></label>
+        </div>
+        <div id="tpl-options" class="hidden">
+          <label>턴 배경색 <input type="color" id="tpl-turn-bg" value="#fafafa"></label>
+          <label>턴 테두리 색 <input type="color" id="tpl-turn-border" value="#e2e8f0"></label>
+          <label>턴 테두리 굵기(px) <input type="number" id="tpl-turn-border-width" value="1" min="0" max="5"></label>
+          <label>턴 모서리(px) <input type="number" id="tpl-turn-radius" value="12" min="0" max="30"></label>
+          <label>턴 안쪽 여백(px) <input type="number" id="tpl-turn-padding" value="20" min="0" max="60"></label>
+          <label>턴 사이 간격(px) <input type="number" id="tpl-turn-gap" value="16" min="0" max="60"></label>
+          <label>유저 메시지 배경색 <input type="color" id="tpl-user-bg" value="#eff6ff"></label>
+          <label>AI 메시지 배경색 <input type="color" id="tpl-ai-bg" value="#f5f3ff"></label>
+          <label>메시지 모서리(px) <input type="number" id="tpl-msg-radius" value="8" min="0" max="20"></label>
+          <label>메시지 안쪽 여백(px) <input type="number" id="tpl-msg-padding" value="12" min="0" max="40"></label>
+          <label>챕터 구분선
+            <select id="tpl-chapter-divider">
+              <option value="none">없음</option>
+              <option value="line" selected>실선</option>
+              <option value="dashed">점선</option>
+              <option value="double">이중선</option>
+              <option value="dotted">도트</option>
+            </select>
+          </label>
+        </div>
+      </section>
+
+      <!-- 7. 내보내기 버튼 -->
       <section class="panel hidden" id="export-panel">
         <h2>💾 내보내기</h2>
         <button id="btn-epub" class="btn btn-primary">📚 epub 다운로드</button>
@@ -127,7 +185,7 @@
       </section>
     </aside>
 
-    <!-- ========== 우측 미리보기 ========== -->
+    <!-- ========== 우측 콘텐츠 ========== -->
     <div id="content-area">
       <div id="empty-state">
         <div class="empty-icon">📂</div>
@@ -148,7 +206,7 @@
         <div id="code-header">
           <h2>📋 HTML 코드</h2>
           <button id="btn-copy-code" class="btn btn-small">복사</button>
-          <button id="btn-close-code" class="btn btn-small">닫기</button>
+          <button id="btn-back-preview" class="btn btn-small">👀 미리보기로 돌아가기</button>
         </div>
         <textarea id="code-output" readonly></textarea>
       </div>
