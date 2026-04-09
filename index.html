@@ -31,6 +31,18 @@
         </div>
       </section>
 
+      <!-- 1.2 프리셋 저장/불러오기 -->
+      <section class="panel" id="preset-panel">
+        <h2>💾 프리셋</h2>
+        <p class="panel-desc">설정을 저장하고 다음에 불러올 수 있어요 (브라우저 캐시에도 자동 저장됩니다)</p>
+        <div style="display:flex;gap:6px;flex-wrap:wrap;">
+          <button id="btn-preset-save" class="btn btn-small" style="flex:1;">📥 프리셋 다운로드</button>
+          <button id="btn-preset-load" class="btn btn-small" style="flex:1;">📤 프리셋 불러오기</button>
+        </div>
+        <input type="file" id="preset-file-input" accept=".json" hidden>
+        <div class="field-hint" style="margin-top:6px;">JSON 파일로 저장/불러오기</div>
+      </section>
+
       <!-- 1.5 파싱 설정 (커스텀 구분자) -->
       <section class="panel hidden" id="parse-panel">
         <h2>⚙️ 파싱 설정</h2>
@@ -146,6 +158,36 @@
           <label>유저 라벨 색상 <input type="color" id="style-user-color" value="#2563eb"></label>
           <label>AI 라벨 색상 <input type="color" id="style-ai-color" value="#7c3aed"></label>
         </div>
+
+        <!-- 상태창 영역 분리 -->
+        <div class="subsection-title" style="margin-top:14px;">📊 상태창 처리</div>
+        <div class="toggle-row">
+          <span>상태창 영역 별도 처리</span>
+          <label class="switch"><input type="checkbox" id="fmt-status-block"><span class="slider"></span></label>
+        </div>
+        <div id="status-block-options" class="hidden">
+          <label>상태창 시작 기준 텍스트
+            <input type="text" id="fmt-status-marker" placeholder='예: ``` 또는 [🗓️ 또는 【상태창】'>
+            <div class="field-hint">이 텍스트가 포함된 줄부터 상태창 영역으로 인식</div>
+          </label>
+          <label>상태창 끝 기준 텍스트 (선택)
+            <input type="text" id="fmt-status-end-marker" placeholder='예: ``` 또는 빈칸(=메시지 끝까지)'>
+            <div class="field-hint">비어있으면 해당 메시지 끝까지 상태창으로 처리</div>
+          </label>
+          <label>상태창 표시 방식
+            <select id="fmt-status-style">
+              <option value="raw">원문 그대로 (서식 변환 안 함)</option>
+              <option value="code">코드 블록 스타일</option>
+              <option value="box">박스 스타일 (테두리+배경)</option>
+              <option value="hide">숨기기 (삭제)</option>
+            </select>
+          </label>
+          <div id="status-box-colors" class="hidden">
+            <label>상태창 배경색 <input type="color" id="fmt-status-bg" value="#f8f9fb"></label>
+            <label>상태창 테두리 색 <input type="color" id="fmt-status-border" value="#e2e8f0"></label>
+            <label>상태창 텍스트 색 <input type="color" id="fmt-status-text" value="#64748b"></label>
+          </div>
+        </div>
       </section>
 
       <!-- 5. 스타일 옵션 -->
@@ -168,25 +210,67 @@
         </label>
         <label>여백(px) <input type="number" id="html-padding" value="40" min="0" max="200"></label>
         <label>배경색 <input type="color" id="html-bg" value="#ffffff"></label>
-        <label>텍스트 색 <input type="color" id="html-text-color" value="#1a1a1a"></label>
+        <label>텍스��� 색 <input type="color" id="html-text-color" value="#1a1a1a"></label>
       </section>
 
-      <!-- 6. HTML 턴 템플릿 -->
+      <!-- 6. HTML 턴 템플릿 / 디자인 테마 -->
       <section class="panel hidden" id="template-panel">
-        <h2>🎨 턴 템플릿 (HTML 전용)</h2>
-        <div class="toggle-row">
-          <span>턴 템플릿 사용</span>
-          <label class="switch"><input type="checkbox" id="tpl-enable"><span class="slider"></span></label>
+        <h2>🎨 디자인 테마</h2>
+        <p class="panel-desc">프리셋을 선택하거나 직접 커스텀하세요</p>
+
+        <div id="theme-presets">
+          <div class="theme-grid">
+            <button class="theme-card active" data-theme="none">
+              <div class="theme-preview theme-none"><span>Aa</span></div>
+              <div class="theme-name">기본 (없음)</div>
+            </button>
+            <button class="theme-card" data-theme="newspaper">
+              <div class="theme-preview theme-newspaper"><span>Aa</span></div>
+              <div class="theme-name">📰 신문</div>
+            </button>
+            <button class="theme-card" data-theme="notebook">
+              <div class="theme-preview theme-notebook"><span>Aa</span></div>
+              <div class="theme-name">📓 노트</div>
+            </button>
+            <button class="theme-card" data-theme="letter">
+              <div class="theme-preview theme-letter"><span>Aa</span></div>
+              <div class="theme-name">💌 편지</div>
+            </button>
+            <button class="theme-card" data-theme="book">
+              <div class="theme-preview theme-book"><span>Aa</span></div>
+              <div class="theme-name">📖 서적</div>
+            </button>
+            <button class="theme-card" data-theme="blog">
+              <div class="theme-preview theme-blog"><span>Aa</span></div>
+              <div class="theme-name">🌐 블로그</div>
+            </button>
+            <button class="theme-card" data-theme="custom">
+              <div class="theme-preview theme-custom"><span>⚙️</span></div>
+              <div class="theme-name">🎨 커스텀</div>
+            </button>
+          </div>
         </div>
+
         <div id="tpl-options" class="hidden">
+          <div class="subsection-title">턴 카드</div>
           <label>턴 배경색 <input type="color" id="tpl-turn-bg" value="#fafafa"></label>
           <label>턴 테두리 색 <input type="color" id="tpl-turn-border" value="#e2e8f0"></label>
           <label>턴 테두리 굵기(px) <input type="number" id="tpl-turn-border-width" value="1" min="0" max="5"></label>
           <label>턴 모서리(px) <input type="number" id="tpl-turn-radius" value="12" min="0" max="30"></label>
           <label>턴 안쪽 여백(px) <input type="number" id="tpl-turn-padding" value="20" min="0" max="60"></label>
           <label>턴 사이 간격(px) <input type="number" id="tpl-turn-gap" value="16" min="0" max="60"></label>
-          <label>유저 메시지 배경색 <input type="color" id="tpl-user-bg" value="#eff6ff"></label>
-          <label>AI 메시지 배경색 <input type="color" id="tpl-ai-bg" value="#f5f3ff"></label>
+
+          <div class="subsection-title">유저 메시지</div>
+          <label>배경색 <input type="color" id="tpl-user-bg" value="#eff6ff"></label>
+          <label>텍스트 색 <input type="color" id="tpl-user-text" value="#1a1a1a"></label>
+          <label>테두리 색 <input type="color" id="tpl-user-border" value="#bfdbfe"></label>
+
+          <div class="subsection-title">AI 메시지</div>
+          <label>배경색 <input type="color" id="tpl-ai-bg" value="#f5f3ff"></label>
+          <label>텍스트 색 <input type="color" id="tpl-ai-text" value="#1a1a1a"></label>
+          <label>테두리 색 <input type="color" id="tpl-ai-border" value="#ddd6fe"></label>
+
+          <div class="subsection-title">메시지 공통</div>
           <label>메시지 모서리(px) <input type="number" id="tpl-msg-radius" value="8" min="0" max="20"></label>
           <label>메시지 안쪽 여백(px) <input type="number" id="tpl-msg-padding" value="12" min="0" max="40"></label>
           <label>챕터 구분선
