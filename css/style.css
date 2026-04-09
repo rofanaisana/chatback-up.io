@@ -25,6 +25,7 @@ body {
   color: var(--text);
   line-height: 1.6;
   min-height: 100vh;
+  overflow: hidden; /* body 자체는 스크롤 안 함 */
 }
 
 /* ── 헤더 ── */
@@ -33,6 +34,7 @@ body {
   border-bottom: 1px solid var(--border);
   padding: 16px 24px;
   text-align: center;
+  flex-shrink: 0;
 }
 #app-header h1 { font-size: 22px; font-weight: 800; }
 #app-header p { font-size: 13px; color: var(--text-sub); margin-top: 2px; }
@@ -41,10 +43,11 @@ body {
 #app-main {
   display: flex;
   gap: 0;
-  min-height: calc(100vh - 80px);
+  height: calc(100vh - 68px); /* 헤더 높이 빼기 */
+  overflow: hidden;
 }
 
-/* ── 사이드바 ── */
+/* ── 사이드바 (독립 스크롤) ── */
 #sidebar {
   width: 360px;
   min-width: 360px;
@@ -55,6 +58,7 @@ body {
   display: flex;
   flex-direction: column;
   gap: 12px;
+  height: 100%;
 }
 
 .panel {
@@ -115,6 +119,14 @@ body {
 .panel input[type="file"] {
   margin-top: 4px;
   font-size: 12px;
+}
+
+.subsection-title {
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--text);
+  margin-top: 10px;
+  margin-bottom: 6px;
 }
 
 /* ── 드롭존 ── */
@@ -221,11 +233,12 @@ body {
 .btn-cancel { background: #f0f0f0; color: #666; padding: 8px 20px; width: auto; }
 .btn-small { padding: 6px 14px; font-size: 12px; width: auto; display: inline-block; margin-bottom: 0; }
 
-/* ── 콘텐츠 영역 ── */
+/* ── 콘텐츠 영역 (독립 스크롤) ── */
 #content-area {
   flex: 1;
   overflow-y: auto;
   padding: 24px;
+  height: 100%;
 }
 
 #empty-state {
@@ -261,7 +274,6 @@ body {
   font-size: 14px;
 }
 
-/* 미리보기 내부 스타일 */
 .preview-chapter { margin-bottom: 32px; }
 .preview-chapter-title {
   font-size: 18px;
@@ -280,13 +292,9 @@ body {
   border-radius: 4px;
   display: inline-block;
 }
-.preview-speaker.user { color: var(--primary); background: #eff6ff; }
-.preview-speaker.ai { color: var(--purple); background: #f5f3ff; }
 .preview-message { margin-bottom: 12px; white-space: pre-wrap; }
 .preview-message em { font-style: italic; color: #555; }
-.preview-message .dialogue { /* 대사 스타일은 JS에서 동적 적용 */ }
 
-/* 챕터 구분선 (직접 지정 모드) */
 .chapter-break-btn {
   display: block;
   width: 100%;
@@ -304,7 +312,6 @@ body {
 .chapter-break-btn.active { border-color: #e11d48; color: #e11d48; background: #fff1f2; }
 
 /* ── 코드 영역 ── */
-#code-area { margin-top: 16px; }
 #code-header {
   display: flex;
   align-items: center;
@@ -314,7 +321,7 @@ body {
 #code-header h2 { font-size: 16px; font-weight: 700; flex: 1; }
 #code-output {
   width: 100%;
-  height: 400px;
+  height: calc(100vh - 200px);
   font-family: 'Fira Code', 'Consolas', monospace;
   font-size: 12px;
   padding: 16px;
@@ -388,13 +395,15 @@ body {
 
 /* ── 반응형 ── */
 @media (max-width: 768px) {
-  #app-main { flex-direction: column; }
+  body { overflow: auto; }
+  #app-main { flex-direction: column; height: auto; min-height: calc(100vh - 68px); }
   #sidebar {
     width: 100%;
     min-width: 0;
     border-right: none;
     border-bottom: 1px solid var(--border);
+    height: auto;
     max-height: 50vh;
   }
-  #content-area { padding: 16px; }
+  #content-area { padding: 16px; height: auto; }
 }
