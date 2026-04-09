@@ -31,6 +31,25 @@
         </div>
       </section>
 
+      <!-- 1.5 파싱 설정 (커스텀 구분자) -->
+      <section class="panel hidden" id="parse-panel">
+        <h2>⚙️ 파싱 설정</h2>
+        <p class="panel-desc">자동 감지가 안 될 경우 직접 설정하세요</p>
+        <label>턴 구분자 (정규식 또는 텍스트)
+          <input type="text" id="parse-turn-sep" placeholder="예: [ Turn {n} ] 또는 ※ {n}턴">
+          <div class="field-hint">파일에서 감지된 구분자: <span id="detected-sep">-</span></div>
+        </label>
+        <label>유저 메시지 마커
+          <input type="text" id="parse-user-marker" placeholder="예: 🗣️ [유저] 또는 👤 [나]">
+          <div class="field-hint">감지된 유저: <span id="detected-user">-</span></div>
+        </label>
+        <label>AI 메시지 마커
+          <input type="text" id="parse-ai-marker" placeholder="예: 🤖 [캐릭터] 또는 ✨ [AI]">
+          <div class="field-hint">감지된 AI: <span id="detected-ai">-</span></div>
+        </label>
+        <button id="btn-reparse" class="btn btn-secondary" style="margin-top:8px;">🔄 다시 파싱</button>
+      </section>
+
       <!-- 2. 메타데이터 -->
       <section class="panel hidden" id="meta-panel">
         <h2>📝 책 정보</h2>
@@ -78,11 +97,17 @@
           <label class="switch"><input type="checkbox" id="fmt-italic" checked><span class="slider"></span></label>
         </div>
 
-        <label>대사("...") 스타일
+        <div class="toggle-row">
+          <span>비지문 텍스트 → "대사" 처리</span>
+          <label class="switch"><input type="checkbox" id="fmt-auto-dialogue"><span class="slider"></span></label>
+        </div>
+        <div class="field-hint" style="margin-top:-6px;margin-bottom:8px;">*로 감싸지 않은 텍스트에 큰따옴표를 자동 추가</div>
+
+        <label>대사 스타일
           <select id="fmt-dialogue">
             <option value="bold">볼드</option>
             <option value="normal" selected>일반 (따옴표 유지)</option>
-            <option value="no-quote">따옴표 제��</option>
+            <option value="no-quote">따옴표 제거</option>
           </select>
         </label>
 
@@ -123,7 +148,7 @@
         </div>
       </section>
 
-      <!-- 5. 스타일 옵션 (HTML + epub 공통) -->
+      <!-- 5. 스타일 옵션 -->
       <section class="panel hidden" id="html-style-panel">
         <h2>🎨 스타일</h2>
         <label>폰트
@@ -146,7 +171,7 @@
         <label>텍스트 색 <input type="color" id="html-text-color" value="#1a1a1a"></label>
       </section>
 
-      <!-- 6. HTML 턴 템플릿 (HTML 전용) -->
+      <!-- 6. HTML 턴 템플릿 -->
       <section class="panel hidden" id="template-panel">
         <h2>🎨 턴 템플릿 (HTML 전용)</h2>
         <div class="toggle-row">
@@ -176,9 +201,23 @@
         </div>
       </section>
 
-      <!-- 7. 내보내기 버튼 -->
+      <!-- 7. 내보내기 -->
       <section class="panel hidden" id="export-panel">
         <h2>💾 내보내기</h2>
+        <div class="radio-group" style="margin-bottom:10px;">
+          <label><input type="radio" name="export-mode" value="all" checked> 일괄 저장</label>
+          <label><input type="radio" name="export-mode" value="split"> 분할 저장</label>
+        </div>
+        <div id="split-options" class="hidden">
+          <div class="radio-group" style="margin-bottom:8px;">
+            <label><input type="radio" name="split-unit" value="chapter" checked> 챕터 단위</label>
+            <label><input type="radio" name="split-unit" value="turn"> 턴 단위</label>
+          </div>
+          <label>분할 크기
+            <input type="number" id="split-size" value="10" min="1" max="9999">
+            <div class="field-hint">예: 10 → 10챕터(또는 10턴)마다 1개 파일</div>
+          </label>
+        </div>
         <button id="btn-epub" class="btn btn-primary">📚 epub 다운로드</button>
         <button id="btn-html-download" class="btn btn-secondary">🌐 html 파일 다운로드</button>
         <button id="btn-html-code" class="btn btn-secondary">📋 html 코드 보기</button>
@@ -199,9 +238,13 @@
           <span id="turn-count"></span>
         </div>
         <div id="preview-content"></div>
+        <div id="preview-pagination" class="hidden">
+          <button id="prev-page" class="btn btn-small">◀ 이전</button>
+          <span id="page-info"></span>
+          <button id="next-page" class="btn btn-small">다음 ▶</button>
+        </div>
       </div>
 
-      <!-- HTML 코드 출력 -->
       <div id="code-area" class="hidden">
         <div id="code-header">
           <h2>📋 HTML 코드</h2>
@@ -225,7 +268,6 @@
     </div>
   </div>
 
-  <!-- 토스트 -->
   <div id="toast" class="hidden"></div>
 
   <script src="js/parser.js"></script>
