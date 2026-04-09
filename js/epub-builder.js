@@ -17,16 +17,20 @@ var EpubBuilder = (function () {
     var title = opts.title || '채팅 백업';
     var author = opts.author || '';
     var uuid = generateUUID();
-    var coverData = opts.coverData || null; // base64 또는 ArrayBuffer
+    var coverData = opts.coverData || null;
     var coverType = opts.coverType || 'image/jpeg';
     var formatOpts = opts.formatOptions || {};
+    var epubLineHeight = opts.lineHeight || 1.8;
+
+    var textAlign = formatOpts.textAlign || 'left';
+    var letterSpacing = formatOpts.letterSpacing || 0;
+    var indentStage = formatOpts.indentStage || false;
+    var indentDialogue = formatOpts.indentDialogue || false;
 
     var zip = new JSZip();
 
-    // mimetype (압축 안 함)
     zip.file('mimetype', 'application/epub+zip', { compression: 'STORE' });
 
-    // META-INF/container.xml
     zip.file('META-INF/container.xml',
       '<?xml version="1.0" encoding="UTF-8"?>\n' +
       '<container version="1.0" xmlns="urn:oasis:names:tc:opendocument:xmlns:container">\n' +
@@ -36,30 +40,34 @@ var EpubBuilder = (function () {
       '</container>'
     );
 
-    // 표지 이미지
     var coverExt = 'jpg';
     if (coverType.indexOf('png') >= 0) coverExt = 'png';
     if (coverData) {
       zip.file('OEBPS/images/cover.' + coverExt, coverData, { binary: true });
     }
 
-    // 스타일시트
+    // epub 스타일시트 (줄간격, 정렬, 자간, 들여쓰기 모두 반영)
     var epubCSS = [
-      'body { font-family: serif; line-height: 1.8; margin: 1em; color: #1a1a1a; }',
+      'body {',
+      '  font-family: serif;',
+      '  line-height: ' + epubLineHeight + ';',
+      '  margin: 1em;',
+      '  color: #1a1a1a;',
+      '  text-align: ' + textAlign + ';',
+      '  letter-spacing: ' + letterSpacing + 'px;',
+      '}',
       'h1 { font-size: 1.5em; margin-bottom: 0.5em; border-bottom: 1px solid #ccc; padding-bottom: 0.3em; }',
       'h2 { font-size: 1.2em; margin: 1em 0 0.5em; }',
-      'p { margin: 0.5em 0; text-indent: 0; }',
+      'p { margin: 0.8em 0; text-indent: 0; }',
+      'p.indent { text-indent: 1em; }',
       'em { font-style: italic; color: #444; }',
       'strong { font-weight: bold; }',
       '.speaker { font-size: 0.85em; font-weight: bold; margin-top: 1em; }',
       '.speaker-user { color: #2563eb; }',
       '.speaker-ai { color: #7c3aed; }',
-      '.dialogue { }',
-      '.dialogue-indent { margin-left: 2em; }',
     ].join('\n');
     zip.file('OEBPS/style.css', epubCSS);
 
-    // 챕터 XHTML 생성
     var chapterFiles = [];
     for (var i = 0; i < chapters.length; i++) {
       var ch = chapters[i];
@@ -69,7 +77,6 @@ var EpubBuilder = (function () {
       chapterFiles.push({ filename: filename, title: ch.title || ('Chapter ' + (i + 1)) });
     }
 
-    // 표지 페이지
     if (coverData) {
       var coverXHTML =
         '<?xml version="1.0" encoding="UTF-8"?>\n' +
@@ -82,8 +89,7 @@ var EpubBuilder = (function () {
       zip.file('OEBPS/cover.xhtml', coverXHTML);
     }
 
-    // 목차 (nav.xhtml)
-    var navItems = chapterFiles.map(function (cf, idx) {
+    var navItems = chapterFiles.map(function (cf) {
       return '      <li><a href="' + cf.filename + '">' + ChatFormatter.escapeHtml(cf.title) + '</a></li>';
     }).join('\n');
 
@@ -100,7 +106,6 @@ var EpubBuilder = (function () {
       '</body></html>';
     zip.file('OEBPS/nav.xhtml', navXHTML);
 
-    // content.opf
     var manifestItems = [];
     var spineItems = [];
 
