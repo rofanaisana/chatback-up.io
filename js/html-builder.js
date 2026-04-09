@@ -16,6 +16,12 @@ var HtmlBuilder = (function () {
     var userColor = opts.userColor || '#2563eb';
     var aiColor = opts.aiColor || '#7c3aed';
     var formatOpts = opts.formatOptions || {};
+    var tpl = opts.template || null;
+
+    var textAlign = formatOpts.textAlign || 'left';
+    var letterSpacing = formatOpts.letterSpacing || 0;
+    var indentStage = formatOpts.indentStage || false;
+    var indentDialogue = formatOpts.indentDialogue || false;
 
     var css = [
       '* { box-sizing: border-box; margin: 0; padding: 0; }',
@@ -27,25 +33,50 @@ var HtmlBuilder = (function () {
       '  margin: 0 auto;',
       '  background: ' + bgColor + ';',
       '  color: ' + textColor + ';',
+      '  text-align: ' + textAlign + ';',
+      '  letter-spacing: ' + letterSpacing + 'px;',
       '}',
       'h1 { font-size: 1.8em; margin-bottom: 0.5em; text-align: center; }',
       'h2 { font-size: 1.4em; margin: 2em 0 0.8em; padding-bottom: 0.3em; border-bottom: 2px solid #e2e8f0; }',
-      'p { margin: 0.5em 0; }',
+      'p { margin: 0.8em 0; }',
+      'p.indent { text-indent: 1em; }',
       'em { font-style: italic; color: #555; }',
       'strong { font-weight: bold; }',
       '.speaker { font-size: 0.85em; font-weight: bold; margin-top: 1.2em; }',
       '.speaker-user { color: ' + userColor + '; }',
       '.speaker-ai { color: ' + aiColor + '; }',
       '.chapter { margin-bottom: 3em; }',
-      '.dialogue { }',
-      '.dialogue-indent { margin-left: 2em; }',
       '.toc { margin: 2em 0; padding: 1.5em; background: #f8f9fb; border-radius: 12px; }',
       '.toc h2 { border: none; margin-top: 0; }',
       '.toc ol { padding-left: 1.5em; }',
       '.toc li { margin: 0.3em 0; }',
       '.toc a { color: ' + userColor + '; text-decoration: none; }',
       '.toc a:hover { text-decoration: underline; }',
-    ].join('\n');
+    ];
+
+    // 템플릿 CSS
+    if (tpl) {
+      css.push('.turn-card {');
+      css.push('  background: ' + tpl.turnBg + ';');
+      css.push('  border: ' + tpl.turnBorderWidth + 'px solid ' + tpl.turnBorder + ';');
+      css.push('  border-radius: ' + tpl.turnRadius + 'px;');
+      css.push('  padding: ' + tpl.turnPadding + 'px;');
+      css.push('  margin-bottom: ' + tpl.turnGap + 'px;');
+      css.push('}');
+      css.push('.msg-card { border-radius: ' + tpl.msgRadius + 'px; padding: ' + tpl.msgPadding + 'px; margin-bottom: 8px; }');
+      css.push('.msg-user { background: ' + tpl.userBg + '; }');
+      css.push('.msg-ai { background: ' + tpl.aiBg + '; }');
+
+      if (tpl.chapterDivider !== 'none') {
+        var borderStyle = tpl.chapterDivider === 'double' ? '4px double #e2e8f0' :
+                          tpl.chapterDivider === 'dashed' ? '2px dashed #e2e8f0' :
+                          tpl.chapterDivider === 'dotted' ? '2px dotted #e2e8f0' :
+                          '2px solid #e2e8f0';
+        css.push('.chapter + .chapter { border-top: ' + borderStyle + '; padding-top: 2em; }');
+      }
+    }
+
+    var cssStr = css.join('\n');
 
     // 목차
     var tocHtml = '<div class="toc"><h2>📑 목차</h2><ol>\n';
@@ -67,16 +98,24 @@ var HtmlBuilder = (function () {
 
       for (var t = 0; t < ch.turns.length; t++) {
         var turn = ch.turns[t];
+
+        if (tpl) bodyHtml += '<div class="turn-card">\n';
+
         for (var m = 0; m < turn.messages.length; m++) {
           var msg = turn.messages[m];
+          var msgClass = tpl ? ('msg-card ' + (msg.speaker.type === 'user' ? 'msg-user' : 'msg-ai')) : '';
 
           if (showSpeaker) {
             var sc = msg.speaker.type === 'user' ? 'speaker-user' : 'speaker-ai';
             bodyHtml += '<p class="speaker ' + sc + '">[' + ChatFormatter.escapeHtml(msg.speaker.name) + ']</p>\n';
           }
 
+          if (tpl) bodyHtml += '<div class="' + msgClass + '">\n';
           bodyHtml += ChatFormatter.format(msg.text, formatOpts) + '\n';
+          if (tpl) bodyHtml += '</div>\n';
         }
+
+        if (tpl) bodyHtml += '</div>\n';
       }
 
       bodyHtml += '</div>\n';
@@ -89,7 +128,7 @@ var HtmlBuilder = (function () {
       '  <meta charset="UTF-8">\n' +
       '  <meta name="viewport" content="width=device-width, initial-scale=1.0">\n' +
       '  <title>' + ChatFormatter.escapeHtml(title) + '</title>\n' +
-      '  <style>\n' + css + '\n  </style>\n' +
+      '  <style>\n' + cssStr + '\n  </style>\n' +
       '</head>\n' +
       '<body>\n' + bodyHtml + '</body>\n' +
       '</html>';
