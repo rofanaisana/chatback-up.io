@@ -1,6 +1,7 @@
 /* ═══════════════════════════════════════
    formatter.js — 서식 변환
    *지문* ↔ 대사/텍스트 분리
+   상태창 영역 별도 처리
    ═══════════════════════════════════════ */
 
 var ChatFormatter = (function () {
@@ -10,6 +11,55 @@ var ChatFormatter = (function () {
       .replace(/&/g, '&amp;')
       .replace(/</g, '&lt;')
       .replace(/>/g, '&gt;');
+  }
+
+  /**
+   * 상태창 영역 분리
+   * statusMarker: 상태창 시작 기준 텍스트
+   * statusEndMarker: 상태창 끝 기준 텍스트 (없으면 메시지 끝까지)
+   * 반환: { body: 본문 텍스트, statusBlocks: [상태창 텍스트들] }
+   */
+  function separateStatusBlocks(text, statusMarker, statusEndMarker) {
+    if (!statusMarker || !text) return { body: text, statusBlocks: [] };
+
+    var blocks = [];
+    var bodyParts = [];
+    var remaining = text;
+
+    while (remaining.length > 0) {
+      var startIdx = remaining.indexOf(statusMarker);
+      if (startIdx === -1) {
+        bodyParts.push(remaining);
+        break;
+      }
+
+      // 시작 마커 전까지는 본문
+      if (startIdx > 0) {
+        bodyParts.push(remaining.substring(0, startIdx));
+      }
+
+      var afterMarker = remaining.substring(startIdx);
+
+      if (statusEndMarker && statusEndMarker.trim()) {
+        // 끝 마커가 있으면 그 사이만 상태창
+        var markerAfterStart = afterMarker.substring(statusMarker.length);
+        var endIdx = markerAfterStart.indexOf(statusEndMarker);
+        if (endIdx !== -1) {
+          blocks.push(afterMarker.substring(0, statusMarker.length + endIdx + statusEndMarker.length));
+          remaining = markerAfterStart.substring(endIdx + statusEndMarker.length);
+        } else {
+          // 끝 마커 못 찾으면 나머지 전부 상태창
+          blocks.push(afterMarker);
+          remaining = '';
+        }
+      } else {
+        // 끝 마커 없으면 나머지 전부 상태창
+        blocks.push(afterMarker);
+        remaining = '';
+      }
+    }
+
+    return { body: bodyParts.join(''), statusBlocks: blocks };
   }
 
   /**
@@ -31,14 +81,12 @@ var ChatFormatter = (function () {
         break;
       }
 
-      // ** (볼드/장식) 처리 — 무시하고 일반 텍스트로
+      // ** (볼드/장식) 처리
       if (idxStar !== -1 && idxStar + 1 < remaining.length && remaining[idxStar + 1] === '*') {
-        // *** 이상도 처리
         var starEnd = idxStar;
         while (starEnd < remaining.length && remaining[starEnd] === '*') starEnd++;
         var starCount = starEnd - idxStar;
 
-        // 닫는 같은 수의 * 찾기
         var closePattern = '';
         for (var sc = 0; sc < starCount; sc++) closePattern += '\\*';
         var closeRegex = new RegExp(closePattern);
@@ -53,7 +101,6 @@ var ChatFormatter = (function () {
           remaining = afterStars.substring(closeMatch.index + starCount);
           continue;
         } else {
-          // 닫히지 않은 ** → 그냥 스킵
           var beforeUnclosed = remaining.substring(0, idxStar).trim();
           if (beforeUnclosed) tokens.push({ type: 'text', content: beforeUnclosed });
           remaining = remaining.substring(starEnd);
@@ -69,11 +116,9 @@ var ChatFormatter = (function () {
         if (before) tokens.push({ type: 'text', content: before });
         remaining = remaining.substring(idxStar + 1);
 
-        // 닫는 단일 * 찾기
         var closeIdx = -1;
         for (var ci = 0; ci < remaining.length; ci++) {
           if (remaining[ci] === '*') {
-            // ** 스킵
             if (ci + 1 < remaining.length && remaining[ci + 1] === '*') { ci++; continue; }
             if (ci > 0 && remaining[ci - 1] === '*') { continue; }
             closeIdx = ci;
@@ -86,7 +131,6 @@ var ChatFormatter = (function () {
           if (stage) tokens.push({ type: 'stage', content: stage });
           remaining = remaining.substring(closeIdx + 1);
         } else {
-          // 닫히지 않은 * → 끝까지 지문
           var stageAll = remaining.trim();
           if (stageAll) tokens.push({ type: 'stage', content: stageAll });
           remaining = '';
@@ -95,11 +139,10 @@ var ChatFormatter = (function () {
         var beforeQ = remaining.substring(0, idxQuote).trim();
         if (beforeQ) tokens.push({ type: 'text', content: beforeQ });
 
-        var openChar = remaining[idxQuote];
         remaining = remaining.substring(idxQuote + 1);
 
         var closeQuoteIdx = -1;
-        var closeChars = ['"', '\u201D', '"'];
+        var closeChars = ['"', '\u201D', '\u201C', '"'];
         for (var qi = 0; qi < remaining.length; qi++) {
           if (closeChars.indexOf(remaining[qi]) !== -1) {
             closeQuoteIdx = qi;
@@ -112,7 +155,6 @@ var ChatFormatter = (function () {
           tokens.push({ type: 'dialogue', content: dialogue });
           remaining = remaining.substring(closeQuoteIdx + 1);
         } else {
-          // 닫히지 않은 따옴표 → 줄 끝까지 대사
           var restLine = remaining;
           var nlIdx = restLine.indexOf('\n');
           if (nlIdx !== -1) {
@@ -129,9 +171,6 @@ var ChatFormatter = (function () {
     return tokens;
   }
 
-  /**
-   * 토큰을 HTML로 조립
-   */
   function tokensToHtml(tokens, opts) {
     var useItalic = opts.italic !== false;
     var dialogueStyle = opts.dialogueStyle || 'normal';
@@ -166,9 +205,7 @@ var ChatFormatter = (function () {
             break;
         }
       } else {
-        // 일반 텍스트
         if (autoDialogue && tok.content.trim()) {
-          // 비지문 텍스트 → 대사로 처리
           var adClass = indentDialogue ? ' class="indent"' : '';
           var adText = escapeHtml(tok.content);
           switch (dialogueStyle) {
@@ -192,11 +229,51 @@ var ChatFormatter = (function () {
     return parts.join('\n');
   }
 
+  /**
+   * 상태창 블록을 HTML로 변환
+   */
+  function statusBlockToHtml(rawText, style, colors) {
+    var escaped = escapeHtml(rawText);
+    style = style || 'raw';
+    colors = colors || {};
+
+    switch (style) {
+      case 'hide':
+        return '';
+      case 'code':
+        return '<div class="status-block status-block-code">' + escaped + '</div>';
+      case 'box':
+        var bg = colors.bg || '#f8f9fb';
+        var border = colors.border || '#e2e8f0';
+        var textCol = colors.text || '#64748b';
+        return '<div class="status-block status-block-box" style="background:' + bg +
+          ';border:1px solid ' + border + ';color:' + textCol + ';">' + escaped + '</div>';
+      case 'raw':
+      default:
+        return '<div class="status-block status-block-raw">' + escaped + '</div>';
+    }
+  }
+
   function format(text, options) {
     if (!text) return '';
     var opts = options || {};
-    var tokens = tokenize(text);
-    return tokensToHtml(tokens, opts);
+
+    // 상태창 분리
+    var statusOpts = opts.statusBlock || {};
+    var separated = separateStatusBlocks(text, statusOpts.marker, statusOpts.endMarker);
+
+    // 본문 서식 변환
+    var bodyTokens = tokenize(separated.body);
+    var bodyHtml = tokensToHtml(bodyTokens, opts);
+
+    // 상태창 HTML
+    if (separated.statusBlocks.length > 0 && statusOpts.style !== 'hide') {
+      for (var i = 0; i < separated.statusBlocks.length; i++) {
+        bodyHtml += '\n' + statusBlockToHtml(separated.statusBlocks[i], statusOpts.style, statusOpts.colors);
+      }
+    }
+
+    return bodyHtml;
   }
 
   function formatForEpub(text, options) {
@@ -211,6 +288,8 @@ var ChatFormatter = (function () {
     format: format,
     formatForEpub: formatForEpub,
     formatForPreview: formatForPreview,
-    escapeHtml: escapeHtml
+    escapeHtml: escapeHtml,
+    separateStatusBlocks: separateStatusBlocks,
+    statusBlockToHtml: statusBlockToHtml
   };
 })();
