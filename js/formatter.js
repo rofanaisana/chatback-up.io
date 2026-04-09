@@ -1,6 +1,6 @@
 /* ═══════════════════════════════════════
    formatter.js — 서식 변환
-   *지문* ↔ "대사" 분리 + 줄바꿈 삽입
+   *지문* ↔ 대사/텍스트 분리
    ═══════════════════════════════════════ */
 
 var ChatFormatter = (function () {
@@ -14,7 +14,6 @@ var ChatFormatter = (function () {
 
   /**
    * 토큰화: *지문*, "대사", 일반텍스트로 분리
-   * 닫히지 않은 *도 처리 (끝까지 지문으로)
    */
   function tokenize(text) {
     var tokens = [];
@@ -32,15 +31,32 @@ var ChatFormatter = (function () {
         break;
       }
 
-      // ** (볼드) 처리
-      if (idxStar !== -1 && remaining[idxStar + 1] === '*') {
-        var endBold = remaining.indexOf('**', idxStar + 2);
-        if (endBold !== -1) {
+      // ** (볼드/장식) 처리 — 무시하고 일반 텍스트로
+      if (idxStar !== -1 && idxStar + 1 < remaining.length && remaining[idxStar + 1] === '*') {
+        // *** 이상도 처리
+        var starEnd = idxStar;
+        while (starEnd < remaining.length && remaining[starEnd] === '*') starEnd++;
+        var starCount = starEnd - idxStar;
+
+        // 닫는 같은 수의 * 찾기
+        var closePattern = '';
+        for (var sc = 0; sc < starCount; sc++) closePattern += '\\*';
+        var closeRegex = new RegExp(closePattern);
+        var afterStars = remaining.substring(starEnd);
+        var closeMatch = afterStars.match(closeRegex);
+
+        if (closeMatch) {
           var beforeBold = remaining.substring(0, idxStar).trim();
           if (beforeBold) tokens.push({ type: 'text', content: beforeBold });
-          var boldContent = remaining.substring(idxStar + 2, endBold);
-          tokens.push({ type: 'text', content: boldContent });
-          remaining = remaining.substring(endBold + 2);
+          var boldContent = afterStars.substring(0, closeMatch.index);
+          if (boldContent.trim()) tokens.push({ type: 'text', content: boldContent.trim() });
+          remaining = afterStars.substring(closeMatch.index + starCount);
+          continue;
+        } else {
+          // 닫히지 않은 ** → 그냥 스킵
+          var beforeUnclosed = remaining.substring(0, idxStar).trim();
+          if (beforeUnclosed) tokens.push({ type: 'text', content: beforeUnclosed });
+          remaining = remaining.substring(starEnd);
           continue;
         }
       }
@@ -53,9 +69,11 @@ var ChatFormatter = (function () {
         if (before) tokens.push({ type: 'text', content: before });
         remaining = remaining.substring(idxStar + 1);
 
+        // 닫는 단일 * 찾기
         var closeIdx = -1;
         for (var ci = 0; ci < remaining.length; ci++) {
           if (remaining[ci] === '*') {
+            // ** 스킵
             if (ci + 1 < remaining.length && remaining[ci + 1] === '*') { ci++; continue; }
             if (ci > 0 && remaining[ci - 1] === '*') { continue; }
             closeIdx = ci;
@@ -68,6 +86,7 @@ var ChatFormatter = (function () {
           if (stage) tokens.push({ type: 'stage', content: stage });
           remaining = remaining.substring(closeIdx + 1);
         } else {
+          // 닫히지 않은 * → 끝까지 지문
           var stageAll = remaining.trim();
           if (stageAll) tokens.push({ type: 'stage', content: stageAll });
           remaining = '';
@@ -80,13 +99,11 @@ var ChatFormatter = (function () {
         remaining = remaining.substring(idxQuote + 1);
 
         var closeQuoteIdx = -1;
-        var closeChars = ['"', '\u201D'];
-        if (openChar === '"' || openChar === '\u201C') {
-          for (var qi = 0; qi < remaining.length; qi++) {
-            if (closeChars.indexOf(remaining[qi]) !== -1 || remaining[qi] === '"') {
-              closeQuoteIdx = qi;
-              break;
-            }
+        var closeChars = ['"', '\u201D', '"'];
+        for (var qi = 0; qi < remaining.length; qi++) {
+          if (closeChars.indexOf(remaining[qi]) !== -1) {
+            closeQuoteIdx = qi;
+            break;
           }
         }
 
@@ -95,8 +112,16 @@ var ChatFormatter = (function () {
           tokens.push({ type: 'dialogue', content: dialogue });
           remaining = remaining.substring(closeQuoteIdx + 1);
         } else {
-          tokens.push({ type: 'text', content: openChar + remaining });
-          remaining = '';
+          // 닫히지 않은 따옴표 → 줄 끝까지 대사
+          var restLine = remaining;
+          var nlIdx = restLine.indexOf('\n');
+          if (nlIdx !== -1) {
+            tokens.push({ type: 'dialogue', content: restLine.substring(0, nlIdx).trim() });
+            remaining = restLine.substring(nlIdx);
+          } else {
+            tokens.push({ type: 'dialogue', content: restLine.trim() });
+            remaining = '';
+          }
         }
       }
     }
@@ -106,13 +131,13 @@ var ChatFormatter = (function () {
 
   /**
    * 토큰을 HTML로 조립
-   * 각 토큰 사이에 빈 줄 (\n\n) 삽입 → 소설 포맷
    */
   function tokensToHtml(tokens, opts) {
     var useItalic = opts.italic !== false;
     var dialogueStyle = opts.dialogueStyle || 'normal';
     var indentStage = opts.indentStage || false;
     var indentDialogue = opts.indentDialogue || false;
+    var autoDialogue = opts.autoDialogue || false;
 
     var parts = [];
     for (var t = 0; t < tokens.length; t++) {
@@ -141,15 +166,32 @@ var ChatFormatter = (function () {
             break;
         }
       } else {
-        // 일반 텍스트 — 따옴표 없는 대사일 수 있음
-        parts.push('<p>' + escapeHtml(tok.content) + '</p>');
+        // 일반 텍스트
+        if (autoDialogue && tok.content.trim()) {
+          // 비지문 텍스트 → 대사로 처리
+          var adClass = indentDialogue ? ' class="indent"' : '';
+          var adText = escapeHtml(tok.content);
+          switch (dialogueStyle) {
+            case 'bold':
+              parts.push('<p' + adClass + '><strong>\u201C' + adText + '\u201D</strong></p>');
+              break;
+            case 'no-quote':
+              parts.push('<p' + adClass + '>' + adText + '</p>');
+              break;
+            case 'normal':
+            default:
+              parts.push('<p' + adClass + '>\u201C' + adText + '\u201D</p>');
+              break;
+          }
+        } else {
+          parts.push('<p>' + escapeHtml(tok.content) + '</p>');
+        }
       }
     }
 
     return parts.join('\n');
   }
 
-  // 메인 서식 변환
   function format(text, options) {
     if (!text) return '';
     var opts = options || {};
