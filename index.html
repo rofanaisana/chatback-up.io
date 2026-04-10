@@ -115,9 +115,13 @@
         </div>
         <div class="field-hint" style="margin-top:-6px;margin-bottom:8px;">*로 감싸지 않은 텍스트에 큰따옴표를 자동 추가</div>
 
+        <div class="toggle-row">
+          <span>대사 굵게 (볼드)</span>
+          <label class="switch"><input type="checkbox" id="fmt-dialogue-bold"><span class="slider"></span></label>
+        </div>
+
         <label>대사 스타일
           <select id="fmt-dialogue">
-            <option value="bold">볼드</option>
             <option value="normal" selected>일반 (따옴표 유지)</option>
             <option value="no-quote">따옴표 제거</option>
           </select>
@@ -195,12 +199,20 @@
         <h2>🎨 스타일</h2>
         <label>폰트
           <select id="html-font">
-            <option value="'Noto Serif KR', serif">노토 세리프 (명조)</option>
+            <option value="'Pretendard', sans-serif">Pretendard (고딕)</option>
             <option value="'Noto Sans KR', sans-serif" selected>노토 산스 (고딕)</option>
+            <option value="'Noto Serif KR', serif">노토 세리프 (명조)</option>
             <option value="'Nanum Myeongjo', serif">나눔명조</option>
+            <option value="'KoPub Batang', serif">KoPub 바탕</option>
+            <option value="'KoPub Dotum', sans-serif">KoPub 돋움</option>
+            <option value="'RIDIBatang', serif">리디바탕</option>
+            <option value="'SM Shin Myungjo', serif">신명조 (로컬)</option>
+            <option value="'SM New Shin Myungjo', serif">신신명조 (로컬)</option>
+            <option value="'Chosun Ilbo Myongjo', serif">조선일보명조 (로컬)</option>
             <option value="serif">기본 Serif</option>
             <option value="sans-serif">기본 Sans-serif</option>
           </select>
+          <div class="field-hint">⚠️ (로컬) 표시 폰트는 PC에 설치되어야 적용됩니다</div>
         </label>
         <label>줄간격
           <div style="display:flex;align-items:center;gap:8px;">
@@ -210,7 +222,7 @@
         </label>
         <label>여백(px) <input type="number" id="html-padding" value="40" min="0" max="200"></label>
         <label>배경색 <input type="color" id="html-bg" value="#ffffff"></label>
-        <label>텍스��� 색 <input type="color" id="html-text-color" value="#1a1a1a"></label>
+        <label>텍스트 색 <input type="color" id="html-text-color" value="#1a1a1a"></label>
       </section>
 
       <!-- 6. HTML 턴 템플릿 / 디자인 테마 -->
@@ -301,6 +313,7 @@
             <input type="number" id="split-size" value="10" min="1" max="9999">
             <div class="field-hint">예: 10 → 10챕터(또는 10턴)마다 1개 파일</div>
           </label>
+          <div class="field-hint" style="margin-top:4px;">⚡ 분할 파일이 많을 경우 자동으로 ZIP으로 묶어서 다운로드합니다</div>
         </div>
         <button id="btn-epub" class="btn btn-primary">📚 epub 다운로드</button>
         <button id="btn-html-download" class="btn btn-secondary">🌐 html 파일 다운로드</button>
