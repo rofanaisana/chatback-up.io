@@ -30,7 +30,7 @@
       <section class="panel" id="upload-panel">
         <h2>📄 파일 업로드</h2>
         <div id="drop-zone">
-          <p>📁 txt 파��을 드래그하거나<br>클릭하여 선택하세요</p>
+          <p>📁 txt 파일을 드래그하거나<br>클릭하여 선택하세요</p>
           <input type="file" id="file-input" accept=".txt" hidden>
         </div>
         <div id="file-info" class="hidden">
@@ -51,7 +51,7 @@
         <div class="field-hint" style="margin-top:6px;">JSON 파일로 저장/불러오기</div>
       </section>
 
-      <!-- 1.5 파싱 설정 (커스텀 구분자) -->
+      <!-- 1.5 파싱 설정 -->
       <section class="panel hidden" id="parse-panel">
         <h2>⚙️ 파싱 설정</h2>
         <p class="panel-desc">자동 감지가 안 될 경우 직접 설정하세요</p>
@@ -162,59 +162,6 @@
           <label class="switch"><input type="checkbox" id="fmt-indent-dialogue"><span class="slider"></span></label>
         </div>
 
-        <!-- 형광펜 / 밑줄 -->
-        <div class="subsection-title" style="margin-top:14px;">🖍️ 형광펜 / 밑줄</div>
-
-        <div class="toggle-row">
-          <span>지문 형광펜</span>
-          <label class="switch"><input type="checkbox" id="fmt-stage-highlight"><span class="slider"></span></label>
-        </div>
-        <div id="stage-highlight-options" class="hidden">
-          <label>형광펜 색상 <input type="color" id="fmt-stage-highlight-color" value="#fff9c4"></label>
-        </div>
-
-        <div class="toggle-row">
-          <span>대사 형광펜</span>
-          <label class="switch"><input type="checkbox" id="fmt-dialogue-highlight"><span class="slider"></span></label>
-        </div>
-        <div id="dialogue-highlight-options" class="hidden">
-          <label>형광펜 색상 <input type="color" id="fmt-dialogue-highlight-color" value="#e1f5fe"></label>
-        </div>
-
-        <div class="toggle-row">
-          <span>지문 밑줄</span>
-          <label class="switch"><input type="checkbox" id="fmt-stage-underline"><span class="slider"></span></label>
-        </div>
-        <div id="stage-underline-options" class="hidden">
-          <label>밑줄 색상 <input type="color" id="fmt-stage-underline-color" value="#a5d6a7"></label>
-          <label>밑줄 스타일
-            <select id="fmt-stage-underline-style">
-              <option value="solid" selected>실선</option>
-              <option value="dashed">점선</option>
-              <option value="dotted">도트</option>
-              <option value="wavy">물결</option>
-              <option value="double">이중선</option>
-            </select>
-          </label>
-        </div>
-
-        <div class="toggle-row">
-          <span>대사 밑줄</span>
-          <label class="switch"><input type="checkbox" id="fmt-dialogue-underline"><span class="slider"></span></label>
-        </div>
-        <div id="dialogue-underline-options" class="hidden">
-          <label>밑줄 색상 <input type="color" id="fmt-dialogue-underline-color" value="#ef9a9a"></label>
-          <label>밑줄 스타일
-            <select id="fmt-dialogue-underline-style">
-              <option value="solid" selected>실선</option>
-              <option value="dashed">점선</option>
-              <option value="dotted">도트</option>
-              <option value="wavy">물결</option>
-              <option value="double">이중선</option>
-            </select>
-          </label>
-        </div>
-
         <div class="toggle-row" style="margin-top:10px;">
           <span>유저/AI 구분 표시</span>
           <label class="switch"><input type="checkbox" id="fmt-speaker" checked><span class="slider"></span></label>
@@ -287,11 +234,10 @@
         <label>텍스트 색 <input type="color" id="html-text-color" value="#1a1a1a"></label>
       </section>
 
-      <!-- 6. HTML 턴 템플릿 / 디자인 테마 -->
+      <!-- 6. 디자인 테마 -->
       <section class="panel hidden" id="template-panel">
         <h2>🎨 디자인 테마</h2>
         <p class="panel-desc">프리셋을 선택하거나 직접 커스텀하세요</p>
-
         <div id="theme-presets">
           <div class="theme-grid">
             <button class="theme-card active" data-theme="none">
@@ -324,7 +270,6 @@
             </button>
           </div>
         </div>
-
         <div id="tpl-options" class="hidden">
           <div class="subsection-title">턴 카드</div>
           <label>턴 배경색 <input type="color" id="tpl-turn-bg" value="#fafafa"></label>
@@ -333,17 +278,14 @@
           <label>턴 모서리(px) <input type="number" id="tpl-turn-radius" value="12" min="0" max="30"></label>
           <label>턴 안쪽 여백(px) <input type="number" id="tpl-turn-padding" value="20" min="0" max="60"></label>
           <label>턴 사이 간격(px) <input type="number" id="tpl-turn-gap" value="16" min="0" max="60"></label>
-
           <div class="subsection-title">유저 메시지</div>
           <label>배경색 <input type="color" id="tpl-user-bg" value="#eff6ff"></label>
           <label>텍스트 색 <input type="color" id="tpl-user-text" value="#1a1a1a"></label>
           <label>테두리 색 <input type="color" id="tpl-user-border" value="#bfdbfe"></label>
-
           <div class="subsection-title">AI 메시지</div>
           <label>배경색 <input type="color" id="tpl-ai-bg" value="#f5f3ff"></label>
           <label>텍스트 색 <input type="color" id="tpl-ai-text" value="#1a1a1a"></label>
           <label>테두리 색 <input type="color" id="tpl-ai-border" value="#ddd6fe"></label>
-
           <div class="subsection-title">메시지 공통</div>
           <label>메시지 모서리(px) <input type="number" id="tpl-msg-radius" value="8" min="0" max="20"></label>
           <label>메시지 안쪽 여백(px) <input type="number" id="tpl-msg-padding" value="12" min="0" max="40"></label>
@@ -396,6 +338,30 @@
           <h2>👀 미리보기</h2>
           <span id="turn-count"></span>
         </div>
+
+        <!-- ★ 형광펜/밑줄 마킹 툴바 ★ -->
+        <div id="marking-toolbar" class="hidden">
+          <span class="toolbar-label">🖍️ 마킹</span>
+          <div class="toolbar-group">
+            <button id="mark-highlight" title="형광펜 모드">형광펜</button>
+            <input type="color" id="mark-highlight-color" value="#fff176" title="형광펜 색상">
+          </div>
+          <div class="toolbar-divider"></div>
+          <div class="toolbar-group">
+            <button id="mark-underline" title="밑줄 모드">밑줄</button>
+            <input type="color" id="mark-underline-color" value="#ef5350" title="밑줄 색상">
+            <select id="mark-underline-style" title="밑줄 스타일">
+              <option value="solid">실선</option>
+              <option value="dashed">점선</option>
+              <option value="dotted">도트</option>
+              <option value="wavy">물결</option>
+              <option value="double">이중선</option>
+            </select>
+          </div>
+          <div class="toolbar-divider"></div>
+          <button id="mark-clear-all" title="모든 마킹 제거" style="color:#e11d48;">🗑 전체 제거</button>
+        </div>
+
         <div id="preview-content"></div>
         <div id="preview-pagination" class="hidden">
           <button id="prev-page" class="btn btn-small">◀ 이전</button>
