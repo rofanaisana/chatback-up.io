@@ -1,6 +1,6 @@
 /* ═══════════════════════════════════════
    html-builder.js — HTML 파일 생성
-   테마 템플릿 + 상태창 블록 지원
+   테마 템플릿 + 상태창 블록 + 확장 글꼴
    ═══════════════════════════════════════ */
 
 var HtmlBuilder = (function () {
@@ -22,8 +22,22 @@ var HtmlBuilder = (function () {
     var textAlign = formatOpts.textAlign || 'left';
     var letterSpacing = formatOpts.letterSpacing || 0;
 
-    var css = [
-      '@import url("https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;700&family=Noto+Serif+KR:wght@400;700&family=Nanum+Myeongjo:wght@400;700&display=swap");',
+    // 사용 중인 폰트에 따라 필요한 @import 생성
+    var fontImports = [];
+    if (fontFamily.indexOf('Noto Sans KR') >= 0 || fontFamily.indexOf('Noto Serif KR') >= 0 || fontFamily.indexOf('Nanum Myeongjo') >= 0) {
+      fontImports.push('@import url("https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;700&family=Noto+Serif+KR:wght@400;700&family=Nanum+Myeongjo:wght@400;700&display=swap");');
+    }
+    if (fontFamily.indexOf('Pretendard') >= 0) {
+      fontImports.push('@import url("https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard.min.css");');
+    }
+    if (fontFamily.indexOf('KoPub Batang') >= 0 || fontFamily.indexOf('KoPub Dotum') >= 0) {
+      fontImports.push('@import url("https://cdn.jsdelivr.net/gh/nicepage/nicepage-fonts@master/KoPub+Batang/font.css");');
+    }
+    if (fontFamily.indexOf('RIDIBatang') >= 0) {
+      fontImports.push('@import url("https://cdn.jsdelivr.net/npm/ridibatang@0.0.1/ridibatang.min.css");');
+    }
+
+    var css = fontImports.concat([
       '* { box-sizing: border-box; margin: 0; padding: 0; }',
       'body {',
       '  font-family: ' + fontFamily + ';',
@@ -52,12 +66,11 @@ var HtmlBuilder = (function () {
       '.toc li { margin: 0.3em 0; }',
       '.toc a { color: ' + userColor + '; text-decoration: none; }',
       '.toc a:hover { text-decoration: underline; }',
-      // 상태창 블록
       '.status-block { font-family: monospace; font-size: 0.85em; white-space: pre-wrap; margin: 0.8em 0; }',
       '.status-block-raw { color: #64748b; }',
       '.status-block-code { background: #f1f5f9; border: 1px solid #e2e8f0; border-radius: 6px; padding: 10px 12px; color: #475569; }',
       '.status-block-box { border-radius: 8px; padding: 10px 12px; }',
-    ];
+    ]);
 
     if (tpl) {
       css.push('.turn-card {');
@@ -82,7 +95,6 @@ var HtmlBuilder = (function () {
 
     var cssStr = css.join('\n');
 
-    // 목차
     var tocHtml = '<div class="toc"><h2>📑 목차</h2><ol>\n';
     for (var i = 0; i < chapters.length; i++) {
       var chTitle = chapters[i].title || ('Chapter ' + (i + 1));
@@ -90,7 +102,6 @@ var HtmlBuilder = (function () {
     }
     tocHtml += '</ol></div>\n';
 
-    // 본문
     var bodyHtml = '<h1>' + ChatFormatter.escapeHtml(title) + '</h1>\n' + tocHtml;
 
     for (var c = 0; c < chapters.length; c++) {
