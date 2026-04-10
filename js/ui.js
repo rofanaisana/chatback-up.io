@@ -3,7 +3,7 @@
    페이지네이션 + 프리셋 + 테마 + 상태창
    localStorage 자동 저장
    분할 저장 → ZIP 묶음 다운로드
-   형광펜 / 밑줄 토글
+   ★ 인터랙티브 형광펜/밑줄 마킹
    ═══════════════════════════════════════ */
 
 (function () {
@@ -66,6 +66,7 @@
     coverType: '',
     previewPage: 0,
     currentTheme: 'none',
+    markingMode: null, // 'highlight' | 'underline' | null
   };
 
   var $ = function (id) { return document.getElementById(id); };
@@ -76,7 +77,7 @@
   }
 
   // ═══════════════════════════════════════
-  // 설정 저장/불러오기 (localStorage)
+  // 설정 저장/불러오기
   // ═══════════════════════════════════════
   var SAVEABLE_IDS = [
     'fmt-italic', 'fmt-auto-dialogue', 'fmt-dialogue', 'fmt-dialogue-bold', 'fmt-align',
@@ -90,11 +91,6 @@
     'fmt-status-block', 'fmt-status-marker', 'fmt-status-end-marker', 'fmt-status-style',
     'fmt-status-bg', 'fmt-status-border', 'fmt-status-text',
     'chapter-format', 'group-size',
-    // 형광펜/밑줄
-    'fmt-stage-highlight', 'fmt-stage-highlight-color',
-    'fmt-dialogue-highlight', 'fmt-dialogue-highlight-color',
-    'fmt-stage-underline', 'fmt-stage-underline-color', 'fmt-stage-underline-style',
-    'fmt-dialogue-underline', 'fmt-dialogue-underline-color', 'fmt-dialogue-underline-style',
   ];
 
   function collectSettings() {
@@ -128,7 +124,6 @@
     $('speaker-style-wrap').style.display = $('fmt-speaker').checked ? 'block' : 'none';
     $('status-block-options').classList.toggle('hidden', !$('fmt-status-block').checked);
     updateStatusBoxVisibility();
-    updateHighlightUnderlineVisibility();
     $('group-size-wrap').classList.toggle('hidden',
       !document.querySelector('input[name="chapter-mode"][value="group"]').checked);
 
@@ -149,7 +144,7 @@
     } catch (e) {}
   }
 
-  // ═══════════════════════════════════════
+  // ════════════════════════��══════════════
   // 이벤트 바인딩
   // ═══════════════════════════════════════
   function bindEvents() {
@@ -185,7 +180,6 @@
       saveSettingsToStorage();
     });
 
-    // 서식 토글
     ['fmt-italic', 'fmt-speaker', 'fmt-indent-stage', 'fmt-indent-dialogue', 'fmt-auto-dialogue', 'fmt-dialogue-bold'].forEach(function (id) {
       var el = $(id);
       if (el) el.addEventListener('change', function () { state.previewPage = 0; refreshAll(); saveSettingsToStorage(); });
@@ -234,24 +228,7 @@
       if (el) el.addEventListener('input', function () { refreshPreview(); saveSettingsToStorage(); });
     });
 
-    // 형광펜/밑줄 토글
-    ['fmt-stage-highlight', 'fmt-dialogue-highlight', 'fmt-stage-underline', 'fmt-dialogue-underline'].forEach(function (id) {
-      var el = $(id);
-      if (el) el.addEventListener('change', function () {
-        updateHighlightUnderlineVisibility();
-        state.previewPage = 0; refreshAll(); saveSettingsToStorage();
-      });
-    });
-    ['fmt-stage-highlight-color', 'fmt-dialogue-highlight-color',
-     'fmt-stage-underline-color', 'fmt-dialogue-underline-color'].forEach(function (id) {
-      var el = $(id);
-      if (el) el.addEventListener('input', function () { refreshPreview(); saveSettingsToStorage(); });
-    });
-    ['fmt-stage-underline-style', 'fmt-dialogue-underline-style'].forEach(function (id) {
-      var el = $(id);
-      if (el) el.addEventListener('change', function () { refreshPreview(); saveSettingsToStorage(); });
-    });
-
+    // 테마
     document.querySelectorAll('.theme-card').forEach(function (card) {
       card.addEventListener('click', function () { selectTheme(this.dataset.theme); });
     });
@@ -291,6 +268,43 @@
       var maxPage = Math.ceil(totalTurns / PREVIEW_PAGE_SIZE) - 1;
       if (state.previewPage < maxPage) { state.previewPage++; refreshPreview(); }
     });
+
+    // ★ 마킹 툴바 이벤트
+    $('mark-highlight').addEventListener('click', function () {
+      toggleMarkingMode('highlight');
+    });
+    $('mark-underline').addEventListener('click', function () {
+      toggleMarkingMode('underline');
+    });
+    $('mark-clear-all').addEventListener('click', function () {
+      clearAllMarks();
+      showToast('🗑 모든 마킹이 제거되었습니다');
+    });
+
+    // 미리보기에서 텍스트 선택 후 mouseup → 마킹 적용
+    $('preview-content').addEventListener('mouseup', function () {
+      if (!state.markingMode) return;
+      var sel = window.getSelection();
+      if (!sel || sel.isCollapsed || !sel.rangeCount) return;
+
+      var range = sel.getRangeAt(0);
+      // 미리보기 영역 안인지 확인
+      var container = $('preview-content');
+      if (!container.contains(range.commonAncestorContainer)) return;
+
+      applyMark(range, state.markingMode);
+      sel.removeAllRanges();
+    });
+
+    // 마킹 삭제 (마킹된 텍스트 클릭)
+    $('preview-content').addEventListener('click', function (e) {
+      var mark = e.target.closest('mark.user-mark');
+      var uline = e.target.closest('span.user-underline');
+      var target = mark || uline;
+      if (!target) return;
+      // hover 상태에서 X 버튼 (::after) 클릭이므로, 그냥 클릭해도 제거
+      unwrapMark(target);
+    });
   }
 
   function updateStatusBoxVisibility() {
@@ -298,15 +312,94 @@
     $('status-box-colors').classList.toggle('hidden', style !== 'box');
   }
 
-  function updateHighlightUnderlineVisibility() {
-    $('stage-highlight-options').classList.toggle('hidden', !$('fmt-stage-highlight').checked);
-    $('dialogue-highlight-options').classList.toggle('hidden', !$('fmt-dialogue-highlight').checked);
-    $('stage-underline-options').classList.toggle('hidden', !$('fmt-stage-underline').checked);
-    $('dialogue-underline-options').classList.toggle('hidden', !$('fmt-dialogue-underline').checked);
+  // ══════��════════════════════════════════
+  // ★ 인터랙티브 마킹 시스템
+  // ═══════════════════════════════════════
+  function toggleMarkingMode(mode) {
+    if (state.markingMode === mode) {
+      state.markingMode = null;
+      $('mark-highlight').classList.remove('active');
+      $('mark-underline').classList.remove('active');
+      $('preview-content').style.cursor = '';
+    } else {
+      state.markingMode = mode;
+      $('mark-highlight').classList.toggle('active', mode === 'highlight');
+      $('mark-underline').classList.toggle('active', mode === 'underline');
+      $('preview-content').style.cursor = 'text';
+    }
+  }
+
+  function applyMark(range, mode) {
+    try {
+      if (mode === 'highlight') {
+        var color = $('mark-highlight-color').value;
+        var mark = document.createElement('mark');
+        mark.className = 'user-mark';
+        mark.style.backgroundColor = color;
+        range.surroundContents(mark);
+      } else if (mode === 'underline') {
+        var ulColor = $('mark-underline-color').value;
+        var ulStyle = $('mark-underline-style').value;
+        var span = document.createElement('span');
+        span.className = 'user-underline';
+        span.style.textDecoration = 'underline';
+        span.style.textDecorationColor = ulColor;
+        span.style.textDecorationStyle = ulStyle;
+        span.style.textUnderlineOffset = '3px';
+        range.surroundContents(span);
+      }
+    } catch (e) {
+      // 선택이 여러 요소에 걸쳐있으면 surroundContents 실패
+      // → 대안: extractContents → 감싸기
+      try {
+        var frag = range.extractContents();
+        var wrapper;
+        if (mode === 'highlight') {
+          wrapper = document.createElement('mark');
+          wrapper.className = 'user-mark';
+          wrapper.style.backgroundColor = $('mark-highlight-color').value;
+        } else {
+          wrapper = document.createElement('span');
+          wrapper.className = 'user-underline';
+          wrapper.style.textDecoration = 'underline';
+          wrapper.style.textDecorationColor = $('mark-underline-color').value;
+          wrapper.style.textDecorationStyle = $('mark-underline-style').value;
+          wrapper.style.textUnderlineOffset = '3px';
+        }
+        wrapper.appendChild(frag);
+        range.insertNode(wrapper);
+      } catch (e2) {
+        showToast('⚠️ 이 구간에는 마킹할 수 없습니다');
+      }
+    }
+  }
+
+  function unwrapMark(el) {
+    var parent = el.parentNode;
+    while (el.firstChild) {
+      parent.insertBefore(el.firstChild, el);
+    }
+    parent.removeChild(el);
+    parent.normalize(); // 인접 텍스트 노드 병합
+  }
+
+  function clearAllMarks() {
+    var container = $('preview-content');
+    container.querySelectorAll('mark.user-mark, span.user-underline').forEach(function (el) {
+      unwrapMark(el);
+    });
+  }
+
+  /**
+   * 미리보기 DOM에서 마킹을 포함한 HTML을 추출
+   * → html-builder에 전달하여 내보내기 시 마킹 포함
+   */
+  function getPreviewHtmlWithMarks() {
+    return $('preview-content').innerHTML;
   }
 
   // ═══════════════════════════════════════
-  // 테��
+  // 테마
   // ═══════════════════════════════════════
   function selectTheme(name) {
     state.currentTheme = name;
@@ -391,7 +484,7 @@
 
   // ═══════════════════════════════════════
   // 파일
-  // ═══════════════════════════════════════
+  // ══════���════════════════════════════════
   function handleFile(file) {
     if (!file.name.endsWith('.txt')) {
       showToast('❌ txt 파일만 지원합니다');
@@ -467,6 +560,7 @@
     });
     $('empty-state').classList.add('hidden');
     $('preview-area').classList.remove('hidden');
+    $('marking-toolbar').classList.remove('hidden');
     $('code-area').classList.add('hidden');
     onChapterFormatChange();
   }
@@ -476,6 +570,7 @@
       $(id).classList.add('hidden');
     });
     $('btn-edit-chapters').classList.add('hidden');
+    $('marking-toolbar').classList.add('hidden');
   }
 
   function handleCover() {
@@ -592,7 +687,6 @@
     }
   }
 
-  // ── 옵션 수집 ──
   function getFormatOptions() {
     var statusOpts = {};
     if ($('fmt-status-block').checked) {
@@ -617,25 +711,6 @@
       indentDialogue: $('fmt-indent-dialogue').checked,
       autoDialogue: $('fmt-auto-dialogue').checked,
       statusBlock: statusOpts,
-      // 형광펜/밑줄
-      stageHighlight: {
-        enabled: $('fmt-stage-highlight').checked,
-        color: $('fmt-stage-highlight-color').value,
-      },
-      dialogueHighlight: {
-        enabled: $('fmt-dialogue-highlight').checked,
-        color: $('fmt-dialogue-highlight-color').value,
-      },
-      stageUnderline: {
-        enabled: $('fmt-stage-underline').checked,
-        color: $('fmt-stage-underline-color').value,
-        style: $('fmt-stage-underline-style').value,
-      },
-      dialogueUnderline: {
-        enabled: $('fmt-dialogue-underline').checked,
-        color: $('fmt-dialogue-underline-color').value,
-        style: $('fmt-dialogue-underline-style').value,
-      },
     };
   }
 
