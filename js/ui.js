@@ -3,6 +3,7 @@
    페이지네이션 + 프리셋 + 테마 + 상태창
    localStorage 자동 저장
    분할 저장 → ZIP 묶음 다운로드
+   형광펜 / 밑줄 토글
    ═══════════════════════════════════════ */
 
 (function () {
@@ -11,7 +12,6 @@
   var PREVIEW_PAGE_SIZE = 50;
   var STORAGE_KEY = 'chatbackup_settings';
 
-  // ── 테마 프리셋 정의 ──
   var THEME_PRESETS = {
     none: null,
     newspaper: {
@@ -90,6 +90,11 @@
     'fmt-status-block', 'fmt-status-marker', 'fmt-status-end-marker', 'fmt-status-style',
     'fmt-status-bg', 'fmt-status-border', 'fmt-status-text',
     'chapter-format', 'group-size',
+    // 형광펜/밑줄
+    'fmt-stage-highlight', 'fmt-stage-highlight-color',
+    'fmt-dialogue-highlight', 'fmt-dialogue-highlight-color',
+    'fmt-stage-underline', 'fmt-stage-underline-color', 'fmt-stage-underline-style',
+    'fmt-dialogue-underline', 'fmt-dialogue-underline-color', 'fmt-dialogue-underline-style',
   ];
 
   function collectSettings() {
@@ -123,6 +128,7 @@
     $('speaker-style-wrap').style.display = $('fmt-speaker').checked ? 'block' : 'none';
     $('status-block-options').classList.toggle('hidden', !$('fmt-status-block').checked);
     updateStatusBoxVisibility();
+    updateHighlightUnderlineVisibility();
     $('group-size-wrap').classList.toggle('hidden',
       !document.querySelector('input[name="chapter-mode"][value="group"]').checked);
 
@@ -179,7 +185,7 @@
       saveSettingsToStorage();
     });
 
-    // 서식 — 대사볼드 토글 추가
+    // 서식 토글
     ['fmt-italic', 'fmt-speaker', 'fmt-indent-stage', 'fmt-indent-dialogue', 'fmt-auto-dialogue', 'fmt-dialogue-bold'].forEach(function (id) {
       var el = $(id);
       if (el) el.addEventListener('change', function () { state.previewPage = 0; refreshAll(); saveSettingsToStorage(); });
@@ -228,6 +234,24 @@
       if (el) el.addEventListener('input', function () { refreshPreview(); saveSettingsToStorage(); });
     });
 
+    // 형광펜/밑줄 토글
+    ['fmt-stage-highlight', 'fmt-dialogue-highlight', 'fmt-stage-underline', 'fmt-dialogue-underline'].forEach(function (id) {
+      var el = $(id);
+      if (el) el.addEventListener('change', function () {
+        updateHighlightUnderlineVisibility();
+        state.previewPage = 0; refreshAll(); saveSettingsToStorage();
+      });
+    });
+    ['fmt-stage-highlight-color', 'fmt-dialogue-highlight-color',
+     'fmt-stage-underline-color', 'fmt-dialogue-underline-color'].forEach(function (id) {
+      var el = $(id);
+      if (el) el.addEventListener('input', function () { refreshPreview(); saveSettingsToStorage(); });
+    });
+    ['fmt-stage-underline-style', 'fmt-dialogue-underline-style'].forEach(function (id) {
+      var el = $(id);
+      if (el) el.addEventListener('change', function () { refreshPreview(); saveSettingsToStorage(); });
+    });
+
     document.querySelectorAll('.theme-card').forEach(function (card) {
       card.addEventListener('click', function () { selectTheme(this.dataset.theme); });
     });
@@ -274,8 +298,15 @@
     $('status-box-colors').classList.toggle('hidden', style !== 'box');
   }
 
+  function updateHighlightUnderlineVisibility() {
+    $('stage-highlight-options').classList.toggle('hidden', !$('fmt-stage-highlight').checked);
+    $('dialogue-highlight-options').classList.toggle('hidden', !$('fmt-dialogue-highlight').checked);
+    $('stage-underline-options').classList.toggle('hidden', !$('fmt-stage-underline').checked);
+    $('dialogue-underline-options').classList.toggle('hidden', !$('fmt-dialogue-underline').checked);
+  }
+
   // ═══════════════════════════════════════
-  // 테마 시스템
+  // 테��
   // ═══════════════════════════════════════
   function selectTheme(name) {
     state.currentTheme = name;
@@ -322,7 +353,7 @@
   }
 
   // ═══════════════════════════════════════
-  // 프리셋 다운로드/불러오기
+  // 프리셋
   // ═══════════════════════════════════════
   function downloadPreset() {
     var data = collectSettings();
@@ -586,6 +617,25 @@
       indentDialogue: $('fmt-indent-dialogue').checked,
       autoDialogue: $('fmt-auto-dialogue').checked,
       statusBlock: statusOpts,
+      // 형광펜/밑줄
+      stageHighlight: {
+        enabled: $('fmt-stage-highlight').checked,
+        color: $('fmt-stage-highlight-color').value,
+      },
+      dialogueHighlight: {
+        enabled: $('fmt-dialogue-highlight').checked,
+        color: $('fmt-dialogue-highlight-color').value,
+      },
+      stageUnderline: {
+        enabled: $('fmt-stage-underline').checked,
+        color: $('fmt-stage-underline-color').value,
+        style: $('fmt-stage-underline-style').value,
+      },
+      dialogueUnderline: {
+        enabled: $('fmt-dialogue-underline').checked,
+        color: $('fmt-dialogue-underline-color').value,
+        style: $('fmt-dialogue-underline-style').value,
+      },
     };
   }
 
@@ -754,7 +804,7 @@
   }
 
   // ═══════════════════════════════════════
-  // 내보내기 — 분할 시 ZIP 묶음
+  // 내보내기
   // ═══════════════════════════════════════
   function doExport(type) {
     if (!state.chapters.length) { showToast('❌ 변환할 내용이 없습니다'); return; }
@@ -789,12 +839,9 @@
     }
 
     var title = $('meta-title').value || 'chat';
-
-    // 파일이 10개 이하면 개별 다운로드, 초과하면 ZIP으로 묶기
     var ZIP_THRESHOLD = 10;
 
     if (chunks.length <= ZIP_THRESHOLD) {
-      // 개별 다운로드 (기존 방식)
       showToast('📦 ' + chunks.length + '개 파일 다운로드 중...', 0);
       if (type === 'epub') {
         var promises = chunks.map(function (chunk, idx) {
@@ -817,16 +864,16 @@
         showToast('✅ ' + chunks.length + '개 html 저장 완료!');
       }
     } else {
-      // ZIP 묶음 다운로드
       showToast('📦 ' + chunks.length + '개 파일을 ZIP으로 묶는 중...', 0);
       var zip = new JSZip();
+      var padLen = String(chunks.length).length;
 
       if (type === 'epub') {
         var epubPromises = chunks.map(function (chunk, idx) {
           var opts = getEpubOptions();
           opts.title = title + ' (' + (idx + 1) + '/' + chunks.length + ')';
           return EpubBuilder.build(chunk, opts).then(function (blob) {
-            var fname = title + '_' + String(idx + 1).padStart(String(chunks.length).length, '0') + '.epub';
+            var fname = title + '_' + String(idx + 1).padStart(padLen, '0') + '.epub';
             zip.file(fname, blob);
           });
         });
@@ -842,7 +889,7 @@
       } else {
         chunks.forEach(function (chunk, idx) {
           var htmlContent = HtmlBuilder.build(chunk, getHtmlOptions());
-          var fname = title + '_' + String(idx + 1).padStart(String(chunks.length).length, '0') + '.html';
+          var fname = title + '_' + String(idx + 1).padStart(padLen, '0') + '.html';
           zip.file(fname, htmlContent);
         });
         zip.generateAsync({ type: 'blob' }).then(function (zipBlob) {
@@ -898,7 +945,6 @@
     URL.revokeObjectURL(url);
   }
 
-  // ── HTML 코드 보기 ──
   function showHtmlCode() {
     if (!state.chapters.length) { showToast('❌ 변환할 내용이 없습니다'); return; }
     var html = HtmlBuilder.build(state.chapters, getHtmlOptions());
