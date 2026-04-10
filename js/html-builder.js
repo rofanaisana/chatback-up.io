@@ -1,6 +1,7 @@
 /* ═══════════════════════════════════════
    html-builder.js — HTML 파일 생성
    테마 템플릿 + 상태창 블록 + 확장 글꼴
+   형광펜 / 밑줄 CSS
    ═══════════════════════════════════════ */
 
 var HtmlBuilder = (function () {
@@ -22,19 +23,29 @@ var HtmlBuilder = (function () {
     var textAlign = formatOpts.textAlign || 'left';
     var letterSpacing = formatOpts.letterSpacing || 0;
 
-    // 사용 중인 폰트에 따라 필요한 @import 생성
+    // 사용 중인 폰트에 따라 필요한 @import 생성 (각각 별도로!)
     var fontImports = [];
-    if (fontFamily.indexOf('Noto Sans KR') >= 0 || fontFamily.indexOf('Noto Serif KR') >= 0 || fontFamily.indexOf('Nanum Myeongjo') >= 0) {
-      fontImports.push('@import url("https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;700&family=Noto+Serif+KR:wght@400;700&family=Nanum+Myeongjo:wght@400;700&display=swap");');
+
+    if (fontFamily.indexOf('Noto Sans KR') >= 0) {
+      fontImports.push('@import url("https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;700&display=swap");');
+    }
+    if (fontFamily.indexOf('Noto Serif KR') >= 0) {
+      fontImports.push('@import url("https://fonts.googleapis.com/css2?family=Noto+Serif+KR:wght@400;700&display=swap");');
+    }
+    if (fontFamily.indexOf('Nanum Myeongjo') >= 0) {
+      fontImports.push('@import url("https://fonts.googleapis.com/css2?family=Nanum+Myeongjo:wght@400;700;800&display=swap");');
     }
     if (fontFamily.indexOf('Pretendard') >= 0) {
       fontImports.push('@import url("https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard.min.css");');
     }
-    if (fontFamily.indexOf('KoPub Batang') >= 0 || fontFamily.indexOf('KoPub Dotum') >= 0) {
-      fontImports.push('@import url("https://cdn.jsdelivr.net/gh/nicepage/nicepage-fonts@master/KoPub+Batang/font.css");');
+    if (fontFamily.indexOf('KoPubWorld Batang') >= 0) {
+      fontImports.push('@import url("https://cdn.jsdelivr.net/npm/font-kopubworld@1.0/batang.min.css");');
+    }
+    if (fontFamily.indexOf('KoPubWorld Dotum') >= 0) {
+      fontImports.push('@import url("https://cdn.jsdelivr.net/npm/font-kopubworld@1.0/dotum.min.css");');
     }
     if (fontFamily.indexOf('RIDIBatang') >= 0) {
-      fontImports.push('@import url("https://cdn.jsdelivr.net/npm/ridibatang@0.0.1/ridibatang.min.css");');
+      fontImports.push('@import url("https://cdn.jsdelivr.net/gh/ridi/fonts@latest/webfonts/RIDIBatang.css");');
     }
 
     var css = fontImports.concat([
