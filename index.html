@@ -5,6 +5,14 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>ChatBack-Up | 채팅 백업 변환기</title>
   <link rel="stylesheet" href="css/style.css">
+  <!-- ── 웹폰트 CDN ── -->
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;700&display=swap">
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Noto+Serif+KR:wght@400;700&display=swap">
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Nanum+Myeongjo:wght@400;700;800&display=swap">
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard.min.css">
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/font-kopubworld@1.0/batang.min.css">
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/font-kopubworld@1.0/dotum.min.css">
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/ridi/fonts@latest/webfonts/RIDIBatang.css">
   <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
 </head>
 <body>
@@ -22,7 +30,7 @@
       <section class="panel" id="upload-panel">
         <h2>📄 파일 업로드</h2>
         <div id="drop-zone">
-          <p>📁 txt 파일을 드래그하거나<br>클릭하여 선택하세요</p>
+          <p>📁 txt 파��을 드래그하거나<br>클릭하여 선택하세요</p>
           <input type="file" id="file-input" accept=".txt" hidden>
         </div>
         <div id="file-info" class="hidden">
@@ -119,6 +127,7 @@
           <span>대사 굵게 (볼드)</span>
           <label class="switch"><input type="checkbox" id="fmt-dialogue-bold"><span class="slider"></span></label>
         </div>
+        <div class="field-hint" style="margin-top:-6px;margin-bottom:8px;">따옴표 유무 관계없이 모든 대사/비지문 텍스트에 볼드 적용</div>
 
         <label>대사 스타일
           <select id="fmt-dialogue">
@@ -151,6 +160,59 @@
         <div class="toggle-row">
           <span>대사 들여쓰기</span>
           <label class="switch"><input type="checkbox" id="fmt-indent-dialogue"><span class="slider"></span></label>
+        </div>
+
+        <!-- 형광펜 / 밑줄 -->
+        <div class="subsection-title" style="margin-top:14px;">🖍️ 형광펜 / 밑줄</div>
+
+        <div class="toggle-row">
+          <span>지문 형광펜</span>
+          <label class="switch"><input type="checkbox" id="fmt-stage-highlight"><span class="slider"></span></label>
+        </div>
+        <div id="stage-highlight-options" class="hidden">
+          <label>형광펜 색상 <input type="color" id="fmt-stage-highlight-color" value="#fff9c4"></label>
+        </div>
+
+        <div class="toggle-row">
+          <span>대사 형광펜</span>
+          <label class="switch"><input type="checkbox" id="fmt-dialogue-highlight"><span class="slider"></span></label>
+        </div>
+        <div id="dialogue-highlight-options" class="hidden">
+          <label>형광펜 색상 <input type="color" id="fmt-dialogue-highlight-color" value="#e1f5fe"></label>
+        </div>
+
+        <div class="toggle-row">
+          <span>지문 밑줄</span>
+          <label class="switch"><input type="checkbox" id="fmt-stage-underline"><span class="slider"></span></label>
+        </div>
+        <div id="stage-underline-options" class="hidden">
+          <label>밑줄 색상 <input type="color" id="fmt-stage-underline-color" value="#a5d6a7"></label>
+          <label>밑줄 스타일
+            <select id="fmt-stage-underline-style">
+              <option value="solid" selected>실선</option>
+              <option value="dashed">점선</option>
+              <option value="dotted">도트</option>
+              <option value="wavy">물결</option>
+              <option value="double">이중선</option>
+            </select>
+          </label>
+        </div>
+
+        <div class="toggle-row">
+          <span>대사 밑줄</span>
+          <label class="switch"><input type="checkbox" id="fmt-dialogue-underline"><span class="slider"></span></label>
+        </div>
+        <div id="dialogue-underline-options" class="hidden">
+          <label>밑줄 색상 <input type="color" id="fmt-dialogue-underline-color" value="#ef9a9a"></label>
+          <label>밑줄 스타일
+            <select id="fmt-dialogue-underline-style">
+              <option value="solid" selected>실선</option>
+              <option value="dashed">점선</option>
+              <option value="dotted">도트</option>
+              <option value="wavy">물결</option>
+              <option value="double">이중선</option>
+            </select>
+          </label>
         </div>
 
         <div class="toggle-row" style="margin-top:10px;">
@@ -203,8 +265,8 @@
             <option value="'Noto Sans KR', sans-serif" selected>노토 산스 (고딕)</option>
             <option value="'Noto Serif KR', serif">노토 세리프 (명조)</option>
             <option value="'Nanum Myeongjo', serif">나눔명조</option>
-            <option value="'KoPub Batang', serif">KoPub 바탕</option>
-            <option value="'KoPub Dotum', sans-serif">KoPub 돋움</option>
+            <option value="'KoPubWorld Batang', serif">KoPub 바탕</option>
+            <option value="'KoPubWorld Dotum', sans-serif">KoPub 돋움</option>
             <option value="'RIDIBatang', serif">리디바탕</option>
             <option value="'SM Shin Myungjo', serif">신명조 (로컬)</option>
             <option value="'SM New Shin Myungjo', serif">신신명조 (로컬)</option>
