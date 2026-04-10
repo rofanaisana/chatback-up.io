@@ -2,6 +2,7 @@
    formatter.js — 서식 변환
    *지문* ↔ 대사/텍스트 분리
    상태창 영역 별도 처리
+   대사 볼드 독립 토글
    ═══════════════════════════════════════ */
 
 var ChatFormatter = (function () {
@@ -13,12 +14,6 @@ var ChatFormatter = (function () {
       .replace(/>/g, '&gt;');
   }
 
-  /**
-   * 상태창 영역 분리
-   * statusMarker: 상태창 시작 기준 텍스트
-   * statusEndMarker: 상태창 끝 기준 텍스트 (없으면 메시지 끝까지)
-   * 반환: { body: 본문 텍스트, statusBlocks: [상태창 텍스트들] }
-   */
   function separateStatusBlocks(text, statusMarker, statusEndMarker) {
     if (!statusMarker || !text) return { body: text, statusBlocks: [] };
 
@@ -33,7 +28,6 @@ var ChatFormatter = (function () {
         break;
       }
 
-      // 시작 마커 전까지는 본문
       if (startIdx > 0) {
         bodyParts.push(remaining.substring(0, startIdx));
       }
@@ -41,19 +35,16 @@ var ChatFormatter = (function () {
       var afterMarker = remaining.substring(startIdx);
 
       if (statusEndMarker && statusEndMarker.trim()) {
-        // 끝 마커가 있으면 그 사이만 상태창
         var markerAfterStart = afterMarker.substring(statusMarker.length);
         var endIdx = markerAfterStart.indexOf(statusEndMarker);
         if (endIdx !== -1) {
           blocks.push(afterMarker.substring(0, statusMarker.length + endIdx + statusEndMarker.length));
           remaining = markerAfterStart.substring(endIdx + statusEndMarker.length);
         } else {
-          // 끝 마커 못 찾으면 나머지 전부 상태창
           blocks.push(afterMarker);
           remaining = '';
         }
       } else {
-        // 끝 마커 없으면 나머지 전부 상태창
         blocks.push(afterMarker);
         remaining = '';
       }
@@ -62,9 +53,6 @@ var ChatFormatter = (function () {
     return { body: bodyParts.join(''), statusBlocks: blocks };
   }
 
-  /**
-   * 토큰화: *지문*, "대사", 일반텍스트로 분리
-   */
   function tokenize(text) {
     var tokens = [];
     var remaining = text;
@@ -171,9 +159,30 @@ var ChatFormatter = (function () {
     return tokens;
   }
 
+  /**
+   * 대사 HTML 생성 헬퍼
+   * dialogueStyle: 'normal' | 'no-quote'
+   * dialogueBold: boolean (독립 볼드 토글)
+   */
+  function buildDialogueHtml(text, dialogueStyle, dialogueBold, cssClass) {
+    var escaped = escapeHtml(text);
+    var inner;
+    if (dialogueStyle === 'no-quote') {
+      inner = escaped;
+    } else {
+      // normal — 따옴표 유지
+      inner = '\u201C' + escaped + '\u201D';
+    }
+    if (dialogueBold) {
+      inner = '<strong>' + inner + '</strong>';
+    }
+    return '<p' + (cssClass ? ' class="' + cssClass + '"' : '') + '>' + inner + '</p>';
+  }
+
   function tokensToHtml(tokens, opts) {
     var useItalic = opts.italic !== false;
     var dialogueStyle = opts.dialogueStyle || 'normal';
+    var dialogueBold = opts.dialogueBold || false;
     var indentStage = opts.indentStage || false;
     var indentDialogue = opts.indentDialogue || false;
     var autoDialogue = opts.autoDialogue || false;
@@ -183,43 +192,19 @@ var ChatFormatter = (function () {
       var tok = tokens[t];
 
       if (tok.type === 'stage') {
-        var stageClass = indentStage ? ' class="indent"' : '';
+        var stageClass = indentStage ? 'indent' : '';
         if (useItalic) {
-          parts.push('<p' + stageClass + '><em>' + escapeHtml(tok.content) + '</em></p>');
+          parts.push('<p' + (stageClass ? ' class="' + stageClass + '"' : '') + '><em>' + escapeHtml(tok.content) + '</em></p>');
         } else {
-          parts.push('<p' + stageClass + '>' + escapeHtml(tok.content) + '</p>');
+          parts.push('<p' + (stageClass ? ' class="' + stageClass + '"' : '') + '>' + escapeHtml(tok.content) + '</p>');
         }
       } else if (tok.type === 'dialogue') {
-        var dClass = indentDialogue ? ' class="indent"' : '';
-        var dText = escapeHtml(tok.content);
-        switch (dialogueStyle) {
-          case 'bold':
-            parts.push('<p' + dClass + '><strong>\u201C' + dText + '\u201D</strong></p>');
-            break;
-          case 'no-quote':
-            parts.push('<p' + dClass + '>' + dText + '</p>');
-            break;
-          case 'normal':
-          default:
-            parts.push('<p' + dClass + '>\u201C' + dText + '\u201D</p>');
-            break;
-        }
+        var dClass = indentDialogue ? 'indent' : '';
+        parts.push(buildDialogueHtml(tok.content, dialogueStyle, dialogueBold, dClass));
       } else {
         if (autoDialogue && tok.content.trim()) {
-          var adClass = indentDialogue ? ' class="indent"' : '';
-          var adText = escapeHtml(tok.content);
-          switch (dialogueStyle) {
-            case 'bold':
-              parts.push('<p' + adClass + '><strong>\u201C' + adText + '\u201D</strong></p>');
-              break;
-            case 'no-quote':
-              parts.push('<p' + adClass + '>' + adText + '</p>');
-              break;
-            case 'normal':
-            default:
-              parts.push('<p' + adClass + '>\u201C' + adText + '\u201D</p>');
-              break;
-          }
+          var adClass = indentDialogue ? 'indent' : '';
+          parts.push(buildDialogueHtml(tok.content, dialogueStyle, dialogueBold, adClass));
         } else {
           parts.push('<p>' + escapeHtml(tok.content) + '</p>');
         }
@@ -229,9 +214,6 @@ var ChatFormatter = (function () {
     return parts.join('\n');
   }
 
-  /**
-   * 상태창 블록을 HTML로 변환
-   */
   function statusBlockToHtml(rawText, style, colors) {
     var escaped = escapeHtml(rawText);
     style = style || 'raw';
@@ -258,15 +240,12 @@ var ChatFormatter = (function () {
     if (!text) return '';
     var opts = options || {};
 
-    // 상태창 분리
     var statusOpts = opts.statusBlock || {};
     var separated = separateStatusBlocks(text, statusOpts.marker, statusOpts.endMarker);
 
-    // 본문 서식 변환
     var bodyTokens = tokenize(separated.body);
     var bodyHtml = tokensToHtml(bodyTokens, opts);
 
-    // 상태창 HTML
     if (separated.statusBlocks.length > 0 && statusOpts.style !== 'hide') {
       for (var i = 0; i < separated.statusBlocks.length; i++) {
         bodyHtml += '\n' + statusBlockToHtml(separated.statusBlocks[i], statusOpts.style, statusOpts.colors);
