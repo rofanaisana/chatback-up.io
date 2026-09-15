@@ -1,0 +1,404 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>ChatBack-Up | 채팅 백업 변환기</title>
+  <link rel="stylesheet" href="css/style.css">
+  <!-- ── 웹폰트 CDN ── -->
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;700&display=swap">
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Noto+Serif+KR:wght@400;700&display=swap">
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Nanum+Myeongjo:wght@400;700;800&display=swap">
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard.min.css">
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/font-kopubworld@1.0/batang.min.css">
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/font-kopubworld@1.0/dotum.min.css">
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/ridi/fonts@latest/webfonts/RIDIBatang.css">
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+</head>
+<body>
+  <!-- 헤더 -->
+  <header id="app-header">
+    <h1>📖 ChatBack-Up</h1>
+    <p>채팅 백업 txt → epub / html 변환기</p>
+  </header>
+
+  <main id="app-main">
+    <!-- ========== 좌측 사이드바 ========== -->
+    <aside id="sidebar">
+
+      <!-- 1. 파일 업로드 -->
+      <section class="panel" id="upload-panel">
+        <h2>📄 파일 업로드</h2>
+        <div id="drop-zone">
+          <p>📁 txt 파일을 드래그하거나<br>클릭하여 선택하세요</p>
+          <input type="file" id="file-input" accept=".txt" hidden>
+        </div>
+        <div id="file-info" class="hidden">
+          <span id="file-name"></span>
+          <button id="file-clear" title="파일 제거">✕</button>
+        </div>
+      </section>
+
+      <!-- 1.2 프리셋 저장/불러오기 -->
+      <section class="panel" id="preset-panel">
+        <h2>💾 프리셋</h2>
+        <p class="panel-desc">설정을 저장하고 다음에 불러올 수 있어요 (브라우저 캐시에도 자동 저장됩니다)</p>
+        <div style="display:flex;gap:6px;flex-wrap:wrap;">
+          <button id="btn-preset-save" class="btn btn-small" style="flex:1;">📥 프리셋 다운로드</button>
+          <button id="btn-preset-load" class="btn btn-small" style="flex:1;">📤 프리셋 불러오기</button>
+        </div>
+        <input type="file" id="preset-file-input" accept=".json" hidden>
+        <div class="field-hint" style="margin-top:6px;">JSON 파일로 저장/불러오기</div>
+      </section>
+
+      <!-- 1.5 파싱 설정 -->
+      <section class="panel hidden" id="parse-panel">
+        <h2>⚙️ 파싱 설정</h2>
+        <p class="panel-desc">자동 감지가 안 될 경우 직접 설정하세요</p>
+        <label>턴 구분자 (정규식 또는 텍스트)
+          <input type="text" id="parse-turn-sep" placeholder="예: [ Turn {n} ] 또는 ※ {n}턴">
+          <div class="field-hint">파일에서 감지된 구분자: <span id="detected-sep">-</span></div>
+        </label>
+        <label>유저 메시지 마커
+          <input type="text" id="parse-user-marker" placeholder="예: 🗣️ [유저] 또는 👤 [나]">
+          <div class="field-hint">감지된 유저: <span id="detected-user">-</span></div>
+        </label>
+        <label>AI 메시지 마커
+          <input type="text" id="parse-ai-marker" placeholder="예: 🤖 [캐릭터] 또는 ✨ [AI]">
+          <div class="field-hint">감지된 AI: <span id="detected-ai">-</span></div>
+        </label>
+        <button id="btn-reparse" class="btn btn-secondary" style="margin-top:8px;">🔄 다시 파싱</button>
+      </section>
+
+      <!-- 2. 메타데이터 -->
+      <section class="panel hidden" id="meta-panel">
+        <h2>📝 책 정보</h2>
+        <label>제목<input type="text" id="meta-title" placeholder="책 제목"></label>
+        <label>저자<input type="text" id="meta-author" placeholder="저자명"></label>
+        <label>표지 이미지 (선택)
+          <input type="file" id="cover-input" accept="image/*">
+        </label>
+        <div id="cover-preview" class="hidden">
+          <img id="cover-img">
+          <button id="cover-clear">표지 제거</button>
+        </div>
+      </section>
+
+      <!-- 3. 챕터 분할 -->
+      <section class="panel hidden" id="chapter-panel">
+        <h2>📑 챕터 분할</h2>
+        <div class="radio-group">
+          <label><input type="radio" name="chapter-mode" value="per-turn" checked> 1턴 = 1챕터</label>
+          <label><input type="radio" name="chapter-mode" value="group"> N턴씩 묶기</label>
+          <label><input type="radio" name="chapter-mode" value="manual"> 직접 지정</label>
+        </div>
+        <div id="group-size-wrap" class="hidden">
+          <label>묶을 턴 수 <input type="number" id="group-size" value="10" min="1" max="999"></label>
+        </div>
+        <div id="chapter-name-format">
+          <label>챕터 이름 형식
+            <select id="chapter-format">
+              <option value="chapter">Chapter {n}</option>
+              <option value="jang">{n}장</option>
+              <option value="turn">Turn {from}~{to}</option>
+              <option value="custom">직접 입력</option>
+            </select>
+          </label>
+        </div>
+        <button id="btn-edit-chapters" class="btn btn-secondary hidden" style="margin-top:8px;">✏️ 챕터 이름 편집</button>
+      </section>
+
+      <!-- 4. 서식 변환 -->
+      <section class="panel hidden" id="format-panel">
+        <h2>✨ 서식 변환</h2>
+
+        <div class="toggle-row">
+          <span>*지문* → 이탤릭</span>
+          <label class="switch"><input type="checkbox" id="fmt-italic" checked><span class="slider"></span></label>
+        </div>
+
+        <div class="toggle-row">
+          <span>비지문 텍스트 → "대사" 처리</span>
+          <label class="switch"><input type="checkbox" id="fmt-auto-dialogue"><span class="slider"></span></label>
+        </div>
+        <div class="field-hint" style="margin-top:-6px;margin-bottom:8px;">*로 감싸지 않은 텍스트에 큰따옴표를 자동 추가</div>
+
+        <div class="toggle-row">
+          <span>대사 굵게 (볼드)</span>
+          <label class="switch"><input type="checkbox" id="fmt-dialogue-bold"><span class="slider"></span></label>
+        </div>
+        <div class="field-hint" style="margin-top:-6px;margin-bottom:8px;">따옴표 유무 관계없이 모든 대사/비지문 텍스트에 볼드 적용</div>
+
+        <label>대사 스타일
+          <select id="fmt-dialogue">
+            <option value="normal" selected>일반 (따옴표 유지)</option>
+            <option value="no-quote">따옴표 제거</option>
+          </select>
+        </label>
+
+        <label>텍스트 정렬
+          <select id="fmt-align">
+            <option value="left" selected>왼쪽 정렬</option>
+            <option value="center">가운데 정렬</option>
+            <option value="right">우측 정렬</option>
+            <option value="justify">양쪽 정렬</option>
+          </select>
+        </label>
+
+        <label>자간 (letter-spacing)
+          <div style="display:flex;align-items:center;gap:8px;">
+            <input type="range" id="fmt-letter-spacing" min="-1" max="5" step="0.1" value="0" style="flex:1;">
+            <span id="fmt-ls-val">0px</span>
+          </div>
+        </label>
+
+        <div class="subsection-title">들여쓰기</div>
+        <div class="toggle-row">
+          <span>지문 들여쓰기</span>
+          <label class="switch"><input type="checkbox" id="fmt-indent-stage"><span class="slider"></span></label>
+        </div>
+        <div class="toggle-row">
+          <span>대사 들여쓰기</span>
+          <label class="switch"><input type="checkbox" id="fmt-indent-dialogue"><span class="slider"></span></label>
+        </div>
+
+        <div class="toggle-row" style="margin-top:10px;">
+          <span>유저/AI 구분 표시</span>
+          <label class="switch"><input type="checkbox" id="fmt-speaker" checked><span class="slider"></span></label>
+        </div>
+
+        <div id="speaker-style-wrap">
+          <label>유저 라벨 색상 <input type="color" id="style-user-color" value="#2563eb"></label>
+          <label>AI 라벨 색상 <input type="color" id="style-ai-color" value="#7c3aed"></label>
+        </div>
+
+        <!-- 상태창 영역 분리 -->
+        <div class="subsection-title" style="margin-top:14px;">📊 상태창 처리</div>
+        <div class="toggle-row">
+          <span>상태창 영역 별도 처리</span>
+          <label class="switch"><input type="checkbox" id="fmt-status-block"><span class="slider"></span></label>
+        </div>
+        <div id="status-block-options" class="hidden">
+          <label>상태창 시작 기준 텍스트
+            <input type="text" id="fmt-status-marker" placeholder='예: ``` 또는 [🗓️ 또는 【상태창】'>
+            <div class="field-hint">이 텍스트가 포함된 줄부터 상태창 영역으로 인식</div>
+          </label>
+          <label>상태창 끝 기준 텍스트 (선택)
+            <input type="text" id="fmt-status-end-marker" placeholder='예: ``` 또는 빈칸(=메시지 끝까지)'>
+            <div class="field-hint">비어있으면 해당 메시지 끝까지 상태창으로 처리</div>
+          </label>
+          <label>상태창 표시 방식
+            <select id="fmt-status-style">
+              <option value="raw">원문 그대로 (서식 변환 안 함)</option>
+              <option value="code">코드 블록 스타일</option>
+              <option value="box">박스 스타일 (테두리+배경)</option>
+              <option value="hide">숨기기 (삭제)</option>
+            </select>
+          </label>
+          <div id="status-box-colors" class="hidden">
+            <label>상태창 배경색 <input type="color" id="fmt-status-bg" value="#f8f9fb"></label>
+            <label>상태창 테두리 색 <input type="color" id="fmt-status-border" value="#e2e8f0"></label>
+            <label>상태창 텍스트 색 <input type="color" id="fmt-status-text" value="#64748b"></label>
+          </div>
+        </div>
+      </section>
+
+      <!-- 5. 스타일 옵션 -->
+      <section class="panel hidden" id="html-style-panel">
+        <h2>🎨 스타일</h2>
+        <label>폰트
+          <select id="html-font">
+            <option value="'Pretendard', sans-serif">Pretendard (고딕)</option>
+            <option value="'Noto Sans KR', sans-serif" selected>노토 산스 (고딕)</option>
+            <option value="'Noto Serif KR', serif">노토 세리프 (명조)</option>
+            <option value="'Nanum Myeongjo', serif">나눔명조</option>
+            <option value="'KoPubWorld Batang', serif">KoPub 바탕</option>
+            <option value="'KoPubWorld Dotum', sans-serif">KoPub 돋움</option>
+            <option value="'RIDIBatang', serif">리디바탕</option>
+            <option value="'SM Shin Myungjo', serif">신명조 (로컬)</option>
+            <option value="'SM New Shin Myungjo', serif">신신명조 (로컬)</option>
+            <option value="'Chosun Ilbo Myongjo', serif">조선일보명조 (로컬)</option>
+            <option value="serif">기본 Serif</option>
+            <option value="sans-serif">기본 Sans-serif</option>
+          </select>
+          <div class="field-hint">⚠️ (로컬) 표시 폰트는 PC에 설치되어야 적용됩니다</div>
+        </label>
+        <label>줄간격
+          <div style="display:flex;align-items:center;gap:8px;">
+            <input type="range" id="html-line-height" min="1" max="3" step="0.1" value="1.8" style="flex:1;">
+            <span id="html-lh-val">1.8</span>
+          </div>
+        </label>
+        <label>여백(px) <input type="number" id="html-padding" value="40" min="0" max="200"></label>
+        <label>배경색 <input type="color" id="html-bg" value="#ffffff"></label>
+        <label>텍스트 색 <input type="color" id="html-text-color" value="#1a1a1a"></label>
+      </section>
+
+      <!-- 6. 디자인 테마 -->
+      <section class="panel hidden" id="template-panel">
+        <h2>🎨 디자인 테마</h2>
+        <p class="panel-desc">프리셋을 선택하거나 직접 커스텀하세요</p>
+        <div id="theme-presets">
+          <div class="theme-grid">
+            <button class="theme-card active" data-theme="none">
+              <div class="theme-preview theme-none"><span>Aa</span></div>
+              <div class="theme-name">기본 (없음)</div>
+            </button>
+            <button class="theme-card" data-theme="newspaper">
+              <div class="theme-preview theme-newspaper"><span>Aa</span></div>
+              <div class="theme-name">📰 신문</div>
+            </button>
+            <button class="theme-card" data-theme="notebook">
+              <div class="theme-preview theme-notebook"><span>Aa</span></div>
+              <div class="theme-name">📓 노트</div>
+            </button>
+            <button class="theme-card" data-theme="letter">
+              <div class="theme-preview theme-letter"><span>Aa</span></div>
+              <div class="theme-name">💌 편지</div>
+            </button>
+            <button class="theme-card" data-theme="book">
+              <div class="theme-preview theme-book"><span>Aa</span></div>
+              <div class="theme-name">📖 서적</div>
+            </button>
+            <button class="theme-card" data-theme="blog">
+              <div class="theme-preview theme-blog"><span>Aa</span></div>
+              <div class="theme-name">🌐 블로그</div>
+            </button>
+            <button class="theme-card" data-theme="custom">
+              <div class="theme-preview theme-custom"><span>⚙️</span></div>
+              <div class="theme-name">🎨 커스텀</div>
+            </button>
+          </div>
+        </div>
+        <div id="tpl-options" class="hidden">
+          <div class="subsection-title">턴 카드</div>
+          <label>턴 배경색 <input type="color" id="tpl-turn-bg" value="#fafafa"></label>
+          <label>턴 테두리 색 <input type="color" id="tpl-turn-border" value="#e2e8f0"></label>
+          <label>턴 테두리 굵기(px) <input type="number" id="tpl-turn-border-width" value="1" min="0" max="5"></label>
+          <label>턴 모서리(px) <input type="number" id="tpl-turn-radius" value="12" min="0" max="30"></label>
+          <label>턴 안쪽 여백(px) <input type="number" id="tpl-turn-padding" value="20" min="0" max="60"></label>
+          <label>턴 사이 간격(px) <input type="number" id="tpl-turn-gap" value="16" min="0" max="60"></label>
+          <div class="subsection-title">유저 메시지</div>
+          <label>배경색 <input type="color" id="tpl-user-bg" value="#eff6ff"></label>
+          <label>텍스트 색 <input type="color" id="tpl-user-text" value="#1a1a1a"></label>
+          <label>테두리 색 <input type="color" id="tpl-user-border" value="#bfdbfe"></label>
+          <div class="subsection-title">AI 메시지</div>
+          <label>배경색 <input type="color" id="tpl-ai-bg" value="#f5f3ff"></label>
+          <label>텍스트 색 <input type="color" id="tpl-ai-text" value="#1a1a1a"></label>
+          <label>테두리 색 <input type="color" id="tpl-ai-border" value="#ddd6fe"></label>
+          <div class="subsection-title">메시지 공통</div>
+          <label>메시지 모서리(px) <input type="number" id="tpl-msg-radius" value="8" min="0" max="20"></label>
+          <label>메시지 안쪽 여백(px) <input type="number" id="tpl-msg-padding" value="12" min="0" max="40"></label>
+          <label>챕터 구분선
+            <select id="tpl-chapter-divider">
+              <option value="none">없음</option>
+              <option value="line" selected>실선</option>
+              <option value="dashed">점선</option>
+              <option value="double">이중선</option>
+              <option value="dotted">도트</option>
+            </select>
+          </label>
+        </div>
+      </section>
+
+      <!-- 7. 내보내기 -->
+      <section class="panel hidden" id="export-panel">
+        <h2>💾 내보내기</h2>
+        <div class="radio-group" style="margin-bottom:10px;">
+          <label><input type="radio" name="export-mode" value="all" checked> 일괄 저장</label>
+          <label><input type="radio" name="export-mode" value="split"> 분할 저장</label>
+        </div>
+        <div id="split-options" class="hidden">
+          <div class="radio-group" style="margin-bottom:8px;">
+            <label><input type="radio" name="split-unit" value="chapter" checked> 챕터 단위</label>
+            <label><input type="radio" name="split-unit" value="turn"> 턴 단위</label>
+          </div>
+          <label>분할 크기
+            <input type="number" id="split-size" value="10" min="1" max="9999">
+            <div class="field-hint">예: 10 → 10챕터(또는 10턴)마다 1개 파일</div>
+          </label>
+          <div class="field-hint" style="margin-top:4px;">⚡ 분할 파일이 많을 경우 자동으로 ZIP으로 묶어서 다운로드합니다</div>
+        </div>
+        <button id="btn-epub" class="btn btn-primary">📚 epub 다운로드</button>
+        <button id="btn-html-download" class="btn btn-secondary">🌐 html 파일 다운로드</button>
+        <button id="btn-html-code" class="btn btn-secondary">📋 html 코드 보기</button>
+      </section>
+    </aside>
+
+    <!-- ========== 우측 콘텐츠 ========== -->
+    <div id="content-area">
+      <div id="empty-state">
+        <div class="empty-icon">📂</div>
+        <h2>txt 파일을 업로드해주세요</h2>
+        <p>rofan.ai / caveduck.io 채팅 백업 txt 파일을 지원합니다</p>
+      </div>
+
+      <div id="preview-area" class="hidden">
+        <div id="preview-header">
+          <h2>👀 미리보기</h2>
+          <span id="turn-count"></span>
+        </div>
+
+        <!-- ★ 형광펜/밑줄 마킹 툴바 ★ -->
+        <div id="marking-toolbar" class="hidden">
+          <span class="toolbar-label">🖍️ 마킹</span>
+          <div class="toolbar-group">
+            <button id="mark-highlight" title="형광펜 모드">형광펜</button>
+            <input type="color" id="mark-highlight-color" value="#fff176" title="형광펜 색상">
+          </div>
+          <div class="toolbar-divider"></div>
+          <div class="toolbar-group">
+            <button id="mark-underline" title="밑줄 모드">밑줄</button>
+            <input type="color" id="mark-underline-color" value="#ef5350" title="밑줄 색상">
+            <select id="mark-underline-style" title="밑줄 스타일">
+              <option value="solid">실선</option>
+              <option value="dashed">점선</option>
+              <option value="dotted">도트</option>
+              <option value="wavy">물결</option>
+              <option value="double">이중선</option>
+            </select>
+          </div>
+          <div class="toolbar-divider"></div>
+          <button id="mark-clear-all" title="모든 마킹 제거" style="color:#e11d48;">🗑 전체 제거</button>
+        </div>
+
+        <div id="preview-content"></div>
+        <div id="preview-pagination" class="hidden">
+          <button id="prev-page" class="btn btn-small">◀ 이전</button>
+          <span id="page-info"></span>
+          <button id="next-page" class="btn btn-small">다음 ▶</button>
+        </div>
+      </div>
+
+      <div id="code-area" class="hidden">
+        <div id="code-header">
+          <h2>📋 HTML 코드</h2>
+          <button id="btn-copy-code" class="btn btn-small">복사</button>
+          <button id="btn-back-preview" class="btn btn-small">👀 미리보기로 돌아가기</button>
+        </div>
+        <textarea id="code-output" readonly></textarea>
+      </div>
+    </div>
+  </main>
+
+  <!-- 챕터 이름 편집 모달 -->
+  <div id="chapter-modal" class="modal-overlay hidden">
+    <div class="modal">
+      <h2>📑 챕터 이름 편집</h2>
+      <div id="chapter-list"></div>
+      <div class="modal-buttons">
+        <button id="chapter-modal-cancel" class="btn btn-cancel">취소</button>
+        <button id="chapter-modal-save" class="btn btn-primary">적용</button>
+      </div>
+    </div>
+  </div>
+
+  <div id="toast" class="hidden"></div>
+
+  <script src="js/parser.js"></script>
+  <script src="js/formatter.js"></script>
+  <script src="js/epub-builder.js"></script>
+  <script src="js/html-builder.js"></script>
+  <script src="js/ui.js"></script>
+</body>
+</html>
